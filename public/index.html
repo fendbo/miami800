@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#070b16">
+<title>Miami 800</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: the whole track in the middle, one thumb pad on each side; a single dark arcade world */
+  --field:#070b16; --pad:#0b1122; --line:#1e2a48; --road:#18223f;
+  --ink:#eef2fb; --dim:#8a96b3; --accent:#38bdf8; --hot:#ffd23f; --stop:#ff4d4d;
+  --display:'Press Start 2P',ui-monospace,Menlo,Consolas,monospace;
+  --body:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--field);color:var(--ink);font-family:var(--body);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#probe{position:fixed;visibility:hidden;pointer-events:none;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,11,22,.8);
+  padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  overflow:auto}
+.overlay[hidden]{display:none}
+.panel{width:100%;max-width:440px;margin:auto;display:flex;flex-direction:column;gap:12px;
+  background:var(--pad);border:2px solid var(--line);padding:16px}
+h1{font:400 22px/1.1 var(--display);margin:0;letter-spacing:.04em;text-align:center}
+h1 b{color:var(--hot);font-weight:400}
+h2{font:400 13px/1.3 var(--display);margin:0;text-align:center;text-wrap:balance}
+.stripe{display:flex;height:6px;gap:2px}
+.stripe i{flex:1}
+p{margin:0;font-size:13px;line-height:1.45;color:var(--dim);text-align:center;text-wrap:balance}
+p.note{color:var(--hot)}
+p.small{font-size:11px;line-height:1.35}
+.row{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+.row>*{flex:1 1 0;min-width:0}
+.cols,.col{display:flex;flex-direction:column;gap:12px}
+.col[hidden]{display:none}
+button,input{font:inherit;color:inherit}
+button.b{font:400 11px/1.2 var(--display);padding:13px 8px;background:var(--accent);color:#04121c;border:0;cursor:pointer;min-height:44px}
+button.b.ghost{background:transparent;color:var(--ink);border:2px solid var(--line)}
+button.b:active{transform:translateY(1px);filter:brightness(1.15)}
+button.b:focus-visible,input:focus-visible,.seg button:focus-visible,.sw:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+button.b small{display:block;font:400 10px/1.2 var(--body);margin-top:5px;opacity:.75}
+input{background:var(--field);border:2px solid var(--line);padding:10px;min-height:44px;font-size:16px;text-transform:none;width:100%;
+  -webkit-user-select:text;user-select:text}
+#code{text-transform:uppercase;letter-spacing:.2em;text-align:center}
+.set{display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center;font-size:12px;color:var(--dim)}
+.set[hidden]{display:none}
+.seg{display:flex;border:2px solid var(--line)}
+.seg button{flex:1;background:transparent;border:0;padding:9px 2px;font:600 12px/1 var(--body);color:var(--dim);cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--line);color:var(--ink)}
+/* car colour swatches: the chosen one gets a white frame, taken ones fade out */
+.sws{display:flex;gap:4px}
+.sw{flex:1 1 0;min-width:0;height:32px;padding:0;border:3px solid var(--pad);cursor:pointer}
+.sw[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--field)}
+.sw:disabled{opacity:.2;cursor:default}
+ol.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+ol.list li{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--field);font-variant-numeric:tabular-nums}
+ol.list li.me{outline:2px solid var(--line)}
+ol.list .chip{width:14px;height:10px;flex:none}
+ol.list .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
+.codebig{font:400 26px/1 var(--display);letter-spacing:.18em;text-align:center;color:var(--hot);padding-left:.18em}
+.link{font-size:11px;color:var(--dim);word-break:break-all;text-align:center;-webkit-user-select:text;user-select:text}
+#home{color:var(--ink);opacity:.55;font-size:12px;text-decoration:none;text-align:center;padding:4px}
+@media (max-height:430px){
+  .panel{max-width:700px;gap:8px;padding:12px}
+  .cols{flex-direction:row;gap:14px}
+  .cols>.col{flex:1 1 0;min-width:0;gap:8px}
+  .tag{display:none}
+  h1{font-size:16px}
+  p{font-size:11px;line-height:1.35}
+  button.b{padding:9px 8px}
+  .seg button{min-height:32px;padding:7px 2px}
+  .sw{height:28px}
+  ol.list{display:grid;grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="probe"></div>
+
+<div class="overlay" id="menu">
+  <div class="panel">
+    <h1>MIAMI <b>800</b></h1>
+    <div class="stripe" id="stripe"></div>
+    <p class="tag">Up to eight cars, three tracks, the whole race on one screen.</p>
+    <p class="note" id="menuMsg" hidden></p>
+    <div class="cols">
+      <div class="col">
+        <input id="name" maxlength="10" placeholder="Your name" autocomplete="off" aria-label="Your name">
+        <button class="b" id="bPractice">PRACTICE<small>You against 7 computer cars</small></button>
+        <div id="onlineBox" class="col" hidden>
+          <div class="row">
+            <button class="b" id="bCreate">NEW ROOM</button>
+            <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" aria-label="Room code">
+            <button class="b ghost" id="bJoin">JOIN</button>
+          </div>
+          <p class="small">NEW ROOM gives you a link to invite up to 7 friends, each on their own phone.</p>
+        </div>
+        <p id="offlineNote" hidden>Racing friends on their own phones turns on once the game is on its own site. This preview is practice only.</p>
+      </div>
+      <div class="col">
+        <div class="set">
+          <span>Track</span>
+          <div class="seg" id="segTrack"><button data-v="0">Training</button><button data-v="1">Classic</button><button data-v="2">Twister</button></div>
+          <span>Laps</span>
+          <div class="seg" id="segLaps"><button data-v="3">3</button><button data-v="5">5</button><button data-v="8">8</button></div>
+          <span>Car</span>
+          <div class="sws" id="menuSw"></div>
+          <span>Steering</span>
+          <div class="seg" id="segSteer"><button data-v="wheel">Wheel</button><button data-v="slide">Slide</button><button data-v="buttons">Buttons</button></div>
+          <span>Sound</span>
+          <div class="seg" id="segSound"><button data-v="on">On</button><button data-v="off">Off</button></div>
+        </div>
+        <p class="small" id="colorNote"></p>
+        <p id="howto"></p>
+      </div>
+    </div>
+    <a id="home" href="https://lubowcade.com/">&lt; Lubowcade</a>
+  </div>
+</div>
+
+<div class="overlay" id="lobby" hidden>
+  <div class="panel">
+    <h2>ROOM</h2>
+    <div class="codebig" id="lobCode">----</div>
+    <p id="lobHint">Invite up to 7 friends: send them the link, or they open the game, type this code and tap JOIN.</p>
+    <div class="row"><button class="b ghost" id="bCopy">INVITE FRIENDS</button></div>
+    <div class="link" id="lobLink" hidden></div>
+    <ol class="list" id="lobList"></ol>
+    <div class="set"><span>Your car</span><div class="sws" id="lobSw"></div></div>
+    <div class="set" id="lobHostRow">
+      <span>Track</span>
+      <div class="seg" id="segLobTrack"><button data-v="0">Training</button><button data-v="1">Classic</button><button data-v="2">Twister</button></div>
+      <span>Laps</span>
+      <div class="seg" id="segLobLaps"><button data-v="3">3</button><button data-v="5">5</button><button data-v="8">8</button></div>
+    </div>
+    <p id="lobWait"></p>
+    <div class="row"><button class="b ghost" id="bLeave">LEAVE</button><button class="b" id="bStart">START RACE</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="results" hidden>
+  <div class="panel">
+    <h2 id="resTitle">RESULTS</h2>
+    <ol class="list" id="resList"></ol>
+    <p id="resWait" hidden></p>
+    <div class="row"><button class="b ghost" id="bResMenu">MENU</button><button class="b" id="bAgain">RACE AGAIN</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="pause" hidden>
+  <div class="panel">
+    <h2 id="pauseTitle">PAUSED</h2>
+    <div class="row"><button class="b ghost" id="bQuit">QUIT RACE</button><button class="b" id="bResume">KEEP RACING</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+// ---------------------------------------------------------------- constants
+var W=1000,H=620;                 // the track's own coordinate space
+var TOP=285;                      // top speed on the road
+// Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
+var COLORS=['#ff4d4d','#38bdf8','#ffd23f','#4ade80','#ff9f43','#b98cff','#ff7ac8','#eef2fb','#b5764a'];
+var COLOR_NAMES=['Red','Blue','Yellow','Green','Orange','Purple','Pink','White','Bronze'];
+var BLUE=1;
+var CPU_NAMES=['Dash','Vera','Buck','Nell','Otto','Roxy','Gus','Ida'];
+var TAU=Math.PI*2;
+function clamp(v,a,b){return v<a?a:v>b?b:v}
+function angDiff(a,b){var d=(a-b)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d}
+function $(id){return document.getElementById(id)}
+function ordinal(n){return n+(n===1?'ST':n===2?'ND':n===3?'RD':'TH')}
+function fmtTime(ms){var s=ms/1000,m=Math.floor(s/60);s-=m*60;return m+':'+(s<10?'0':'')+s.toFixed(2)}
+function store(k,v){try{if(v===undefined)return localStorage.getItem('m8.'+k);localStorage.setItem('m8.'+k,v)}catch(e){return null}}
+function isJeff(n){return String(n||'').trim().toLowerCase()==='jeff'}
+
+// ---------------------------------------------------------------- tracks
+// Each track: control points of the centre line, driven clockwise; half the road width; where the start line is;
+// and the top-left corner of an empty patch of infield (288 x 40) where finishers line up.
+var TRACKS=[
+  {name:'Training',half:42,start:[500,110],board:[356,405],
+   pts:[[300,110],[500,110],[700,110],[841,169],[900,310],[841,451],[700,510],[500,510],[300,510],[159,451],[100,310],[159,169]]},
+  {name:'Classic',half:34,start:[455,76],board:[304,140],
+   pts:[[150,160],[235,82],[500,74],[790,80],[892,150],[896,268],[790,330],[650,272],[525,252],[440,318],
+        [500,418],[690,432],[850,452],[912,520],[830,574],[420,566],[185,562],[100,478],[126,382],[252,338],[292,252],[180,232]]},
+  {name:'Twister',half:30,start:[430,56],board:[236,120],
+   pts:[[88,300],[92,170],[140,85],[230,58],[430,56],[640,58],[820,60],[905,95],[942,180],[905,300],[940,420],[925,500],[880,552],[820,560],[775,525],[760,460],
+        [760,330],[760,240],[740,180],[690,152],[640,180],[620,240],[620,410],[600,470],[550,495],[500,470],[480,410],[480,300],[460,245],[410,222],[360,245],[340,300],
+        [340,400],[322,480],[280,538],[210,562],[130,540],[95,470],[125,385]]}
+];
+var track=-1;
+var HALF=34;                      // half the road width (set per track)
+var WALL=26;                      // how far a car's middle can get from the centre line before it meets the barrier
+var PX=[],PY=[],TX=[],TY=[],TURN=[],N=0;
+function setTrack(k){
+  k=clamp(parseInt(k,10)||0,0,TRACKS.length-1);
+  if(k===track)return;
+  track=k;
+  var T=TRACKS[k],CTRL=T.pts,raw=[],n=CTRL.length,i,j;
+  HALF=T.half;WALL=HALF-8;PX=[];PY=[];TX=[];TY=[];TURN=[];
+  for(i=0;i<n;i++){
+    var p0=CTRL[(i+n-1)%n],p1=CTRL[i],p2=CTRL[(i+1)%n],p3=CTRL[(i+2)%n];
+    for(j=0;j<24;j++){
+      var t=j/24,t2=t*t,t3=t2*t;
+      raw.push([0.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+                0.5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)]);
+    }
+  }
+  // resample to even 8-unit steps
+  var cum=[0],L=0;
+  for(i=0;i<raw.length;i++){var a=raw[i],b=raw[(i+1)%raw.length];L+=Math.hypot(b[0]-a[0],b[1]-a[1]);cum.push(L)}
+  N=Math.round(L/8);
+  var pts=[],q=0;
+  for(i=0;i<N;i++){
+    var d=i*L/N; while(cum[q+1]<d)q++;
+    var f=(d-cum[q])/(cum[q+1]-cum[q]),A=raw[q],B=raw[(q+1)%raw.length];
+    pts.push([A[0]+(B[0]-A[0])*f,A[1]+(B[1]-A[1])*f]);
+  }
+  // index 0 = start line
+  var best=1e9,bi=0;
+  for(i=0;i<N;i++){var dd=Math.abs(pts[i][0]-T.start[0])+Math.abs(pts[i][1]-T.start[1])*3;if(dd<best){best=dd;bi=i}}
+  for(i=0;i<N;i++){var w=pts[(i+bi)%N];PX.push(w[0]);PY.push(w[1])}
+  for(i=0;i<N;i++){
+    var dx=PX[(i+1)%N]-PX[(i+N-1)%N],dy=PY[(i+1)%N]-PY[(i+N-1)%N],l=Math.hypot(dx,dy);
+    TX.push(dx/l);TY.push(dy/l);
+  }
+  // how much the road bends over the next stretch (used by the computer cars to pick a speed)
+  for(i=0;i<N;i++){
+    var s=0;
+    for(j=0;j<16;j++){var a1=(i+j)%N,b1=(i+j+1)%N;s+=Math.abs(angDiff(Math.atan2(TY[b1],TX[b1]),Math.atan2(TY[a1],TX[a1])))}
+    TURN.push(s);
+  }
+  if(trackImg)paintTrack();
+}
+function wrap(i){return ((i%N)+N)%N}
+
+// ---------------------------------------------------------------- state
+var cv=$('c'),ctx=cv.getContext('2d');
+var vw=0,vh=0,dpr=1,portrait=false,sc=1,ox=0,oy=0,padL=null,padR=null,region=null,pauseBtn=null,trackImg=null;
+var mode='menu';                  // menu | race
+var phase='idle';                 // count | go | done
+var online=false;                 // racing a room (true) or practice (false)
+var cars=[],me=null,laps=+(store('laps')||5),raceStart=0,paused=false,pauseAt=0;
+var scheme=store('steer2')||'wheel',soundOn=store('sound')!=='off';
+var msg='',msgUntil=0,finalLapShown=false,lastSend=0,resultsShown=false,doneAt=0;
+var board=[];                     // cars that have finished, in order: they leave the track and line up here
+var canOnline=false;
+var net={code:'',you:null,host:null,players:[],state:'lobby',laps:5,track:1},ws=null;
+
+function makeCar(slot,opt){
+  var row=Math.floor(slot/2),col=slot%2,i=wrap(N-5-row*4-col*2),lat=(col?1:-1)*13;
+  var c={slot:slot,color:COLORS[slot%COLORS.length],name:'',cpu:false,remote:false,id:null,
+    x:PX[i]-TY[i]*lat,y:PY[i]+TX[i]*lat,h:Math.atan2(TY[i],TX[i]),vx:0,vy:0,
+    idx:i,s:i-N,fin:0,onRoad:true,offT:0,wrongT:0,skill:1,off:lat,wheel:0,gas:false,brake:false,
+    sx:0,sy:0,sh:0,svx:0,svy:0,st:0,popT:0};
+  for(var k in opt)c[k]=opt[k];
+  return c;
+}
+function attract(){
+  mode='menu';phase='go';online=false;me=null;cars=[];board=[];
+  for(var i=0;i<8;i++)cars.push(makeCar(i,{cpu:true,name:CPU_NAMES[i],skill:0.8+0.02*i,off:(i%2?1:-1)*(6+i)}));
+  raceStart=performance.now();
+}
+function myColor(){
+  if(isJeff($('name').value))return BLUE;
+  var v=parseInt(store('color'),10);
+  return v>=0&&v<COLORS.length&&v!==BLUE?v:0;
+}
+function startPractice(){
+  var mySlot=4,k=0,skills=[0.97,0.93,0.9,0.87,0.84,0.81,0.78],mine=myColor(),pool=[],q;
+  for(q=0;q<COLORS.length;q++)if(q!==mine&&q!==BLUE)pool.push(q);   // computer cars never take blue
+  cars=[];
+  for(var i=0;i<8;i++){
+    if(i===mySlot)cars.push(me=makeCar(i,{name:'YOU',color:COLORS[mine]}));
+    else{cars.push(makeCar(i,{cpu:true,name:CPU_NAMES[k],color:COLORS[pool[k]],skill:skills[k],off:(i%2?1:-1)*(5+2*k)}));k++}
+  }
+  online=false;beginRace(performance.now()+3600);
+}
+function beginRace(at){
+  mode='race';phase='count';raceStart=at;paused=false;finalLapShown=false;resultsShown=false;msg='';lightStep=0;board=[];
+  pointers={};pendingTurn=0;steer=0;gear=1;bothT=0;wasGas=false;wasBrake=false;
+  hideAll();audioInit();
+}
+function addBoard(c,now){ // a finisher leaves the track and pops onto the leader board
+  if(board.indexOf(c)>=0)return;
+  board.push(c);board.sort(function(a,b){return a.fin-b.fin});
+  c.popT=now;
+  if(c!==me)beep(700,.07,.04);
+}
+
+// ---------------------------------------------------------------- input
+var pointers={},pendingTurn=0,steer=0,keys={},gear=1,bothT=0;
+var ui={};                        // on-screen controls, placed by layout(): wheel, gas, brake, shift, split
+function inRect(r,x,y,m){return r&&x>=r.x-m&&x<=r.x+r.w+m&&y>=r.y-m&&y<=r.y+r.h+m}
+function pedalState(){
+  var gas=false,brake=false,rev=gear<0,id,p;
+  if(scheme==='buttons'){
+    var l=false,r=false;
+    for(id in pointers){p=pointers[id];if(p.side==='L')l=true;else r=true}
+    brake=l&&r;gas=!brake;rev=false;
+    steer=brake?0:(l?-1:r?1:0);
+    // keep holding both sides after the car stops and it backs up
+    if(brake&&me&&Math.hypot(me.vx,me.vy)<6)bothT+=DT;else if(!brake)bothT=0;
+    if(brake&&bothT>0.35){brake=false;gas=true;rev=true}
+  }else{
+    // pedals: the tall one on the right is gas, the wide one beside it is the brake
+    for(id in pointers){p=pointers[id];if(p.side==='R'&&!p.shift){if(p.x>=ui.split)gas=true;else brake=true}}
+    steer=0;
+    if(scheme==='slide')for(id in pointers){p=pointers[id];if(p.side==='L')steer=clamp((p.x-p.x0)/50,-1,1)}
+  }
+  if(keys.ArrowUp||keys.w)gas=true;
+  if(keys.ArrowDown||keys.s||keys[' '])brake=true;
+  if(keys.ArrowLeft||keys.a)steer=-1;
+  if(keys.ArrowRight||keys.d)steer=1;
+  if(brake)gas=false;
+  return {gas:gas,brake:brake,rev:rev};
+}
+function shiftGear(){gear=-gear;beep(gear>0?520:300,.06)}
+cv.addEventListener('pointerdown',function(e){
+  if(mode!=='race'||paused)return;
+  e.preventDefault();
+  if(inRect(pauseBtn,e.clientX,e.clientY,0)){openPause();return}
+  try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  var p={side:e.clientX<vw/2?'L':'R',x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,shift:false};
+  if(scheme!=='buttons'&&inRect(ui.shift,e.clientX,e.clientY,8)){p.shift=true;shiftGear()}
+  pointers[e.pointerId]=p;
+});
+cv.addEventListener('pointermove',function(e){
+  var p=pointers[e.pointerId];if(!p)return;
+  e.preventDefault();
+  if(p.side==='L'&&scheme==='wheel'){
+    // the thumb goes round the wheel; the car turns by the same angle, as many times round as you like
+    var cx=ui.wheel.x,cy=ui.wheel.y;
+    if(Math.hypot(p.x-cx,p.y-cy)>12&&Math.hypot(e.clientX-cx,e.clientY-cy)>12){
+      var d=angDiff(Math.atan2(e.clientY-cy,e.clientX-cx),Math.atan2(p.y-cy,p.x-cx));
+      pendingTurn=clamp(pendingTurn+d,-4,4);if(me)me.wheel+=d;
+    }
+  }
+  p.x=e.clientX;p.y=e.clientY;
+});
+function up(e){delete pointers[e.pointerId]}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+window.addEventListener('keydown',function(e){if(e.target.tagName==='INPUT')return;if(e.key==='r'&&!keys.r&&mode==='race')shiftGear();keys[e.key]=true;if(mode==='race'&&e.key.indexOf('Arrow')===0)e.preventDefault();if(e.key==='Escape'&&mode==='race')paused?closePause():openPause()});
+window.addEventListener('keyup',function(e){keys[e.key]=false});
+document.addEventListener('gesturestart',function(e){e.preventDefault()});
+document.addEventListener('contextmenu',function(e){if(e.target===cv)e.preventDefault()});
+
+// ---------------------------------------------------------------- physics
+var DT=1/120;
+function cpuDrive(c){
+  var sp=Math.hypot(c.vx,c.vy),look=5+Math.round(sp/32),j=wrap(c.idx+look),off=c.off*WALL/26;
+  var tx=PX[j]-TY[j]*off,ty=PY[j]+TX[j]*off;
+  var d=angDiff(Math.atan2(ty-c.y,tx-c.x),c.h);
+  var target=(TOP-178*clamp(TURN[wrap(c.idx+3)]/1.5,0,1))*c.skill;
+  if(Math.abs(d)>1.2)target=Math.min(target,90);
+  c.h+=clamp(d*6,-1,1)*4.6*DT;
+  return {gas:sp<target,brake:sp>target+28,rev:false};
+}
+function stepCar(c,inp){
+  var fx=Math.cos(c.h),fy=Math.sin(c.h);
+  var vf=c.vx*fx+c.vy*fy,vl=-c.vx*fy+c.vy*fx;
+  var top=c.cpu?TOP*(0.9+0.1*c.skill):TOP;
+  if(inp.brake)vf=vf>0?Math.max(0,vf-540*DT):Math.min(0,vf+540*DT);
+  else if(inp.gas){
+    if(inp.rev){if(vf>-95)vf=Math.max(-95,vf-(vf>0?420:170)*DT)}
+    else if(vf<top)vf=Math.min(top,vf+(vf<0?420:235)*DT);
+  }else vf*=Math.exp(-0.7*DT);
+  vl*=Math.exp(-14*DT);
+  c.vx=fx*vf-fy*vl;c.vy=fy*vf+fx*vl;
+  c.x+=c.vx*DT;c.y+=c.vy*DT;
+  c.gas=inp.gas;c.brake=inp.brake;
+}
+function follow(c){
+  // Find where the car is along the road, count its progress, and hold it inside the barriers.
+  var best=1e18,bk=0;
+  for(var k=-10;k<=30;k++){var j=wrap(c.idx+k),dx=PX[j]-c.x,dy=PY[j]-c.y,d2=dx*dx+dy*dy;if(d2<best){best=d2;bk=k}}
+  c.idx=wrap(c.idx+bk);c.s+=bk;
+  c.wrongT=(bk<0&&Math.hypot(c.vx,c.vy)>40)?c.wrongT+DT*4:Math.max(0,c.wrongT-DT*0.5);
+  var d=Math.sqrt(best);
+  if(d>WALL){
+    var i=c.idx,nx=(c.x-PX[i])/d,ny=(c.y-PY[i])/d,vn=c.vx*nx+c.vy*ny;
+    c.x=PX[i]+nx*WALL;c.y=PY[i]+ny*WALL;
+    if(vn>0){ // hitting the barrier: lose the speed going into it, and more the squarer the hit
+      c.vx-=nx*vn*1.15;c.vy-=ny*vn*1.15;
+      var keep=1-0.5*clamp(vn/TOP,0,1);c.vx*=keep;c.vy*=keep;
+      if(vn>70&&c===me)thud();
+    }
+    var f=Math.exp(-1.5*DT);c.vx*=f;c.vy*=f; // rubbing along it drags
+  }
+}
+function physics(now){
+  var racing=phase==='go'||phase==='done',i,j,c;
+  var ped=me?pedalState():null;
+  for(i=0;i<cars.length;i++){
+    c=cars[i];if(c.remote||c.fin)continue;       // finished cars are off the track
+    var inp;
+    if(c.cpu||(c===me&&autopilot)){inp=racing?cpuDrive(c):{gas:false,brake:false,rev:false}}
+    else if(racing){
+      inp=ped;
+      var spd=Math.hypot(c.vx,c.vy);
+      if(ped.gas&&!wasGas)rev(spd);
+      if(ped.brake&&!wasBrake&&spd>50)screech(spd);
+      wasGas=ped.gas;wasBrake=ped.brake;
+      var d=clamp(pendingTurn,-14*DT,14*DT);c.h+=d;pendingTurn-=d;
+      if(steer){var sp=Math.hypot(c.vx,c.vy);c.h+=steer*3.8*DT*clamp(sp/60+0.5,0,1);c.wheel+=(steer*0.9-c.wheel)*0.2}
+      else if(scheme!=='wheel')c.wheel*=0.85;
+    }else inp={gas:false,brake:false,rev:false};
+    stepCar(c,inp);
+  }
+  // bumps
+  for(i=0;i<cars.length;i++)for(j=i+1;j<cars.length;j++){
+    var a=cars[i],b=cars[j];if((a.remote&&b.remote)||a.fin||b.fin)continue;
+    var dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
+    if(d2<400&&d2>0.01){
+      var dist=Math.sqrt(d2),nx=dx/dist,ny=dy/dist,o=20-dist,vn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
+      if(a.remote){b.x+=nx*o;b.y+=ny*o;if(vn>0){b.vx+=nx*vn*0.75;b.vy+=ny*vn*0.75}}
+      else if(b.remote){a.x-=nx*o;a.y-=ny*o;if(vn>0){a.vx-=nx*vn*0.75;a.vy-=ny*vn*0.75}}
+      else{a.x-=nx*o/2;a.y-=ny*o/2;b.x+=nx*o/2;b.y+=ny*o/2;
+        if(vn>0){a.vx-=nx*vn*0.75;a.vy-=ny*vn*0.75;b.vx+=nx*vn*0.75;b.vy+=ny*vn*0.75}}
+      if(vn>45&&(a===me||b===me))thud();
+    }
+  }
+  for(i=0;i<cars.length;i++){
+    c=cars[i];if(c.remote||c.fin)continue;
+    follow(c);
+    if(racing&&c.s>=laps*N&&mode==='race'){
+      c.fin=Math.max(1,now-raceStart);addBoard(c,now);
+      if(c===me){phase='done';doneAt=now;flash('FINISHED '+ordinal(place(me)),4000);beep(880,.12);setTimeout(function(){beep(1320,.25)},130);if(online)send({t:'fin',time:c.fin})}
+    }
+    if(mode==='menu'&&c.s>1e6)c.s=0;
+  }
+}
+function place(c){
+  var p=1;
+  for(var i=0;i<cars.length;i++){var o=cars[i];if(o===c)continue;
+    if(c.fin){if(o.fin&&o.fin<c.fin)p++}else if(o.fin||o.s>c.s)p++}
+  return p;
+}
+var autopilot=false;
+
+// ---------------------------------------------------------------- sound
+var AC=null,lightStep=0,lastThud=0;
+function audioInit(){
+  if(AC){if(AC.state==='suspended')AC.resume().catch(function(){});return}
+  try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){AC=null}
+}
+function beep(freq,dur,vol){
+  if(!AC||!soundOn)return;
+  try{var o=AC.createOscillator(),g=AC.createGain();o.type='square';o.frequency.value=freq;g.gain.value=vol||0.06;
+    g.gain.setTargetAtTime(0,AC.currentTime+dur*0.7,0.03);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+dur+0.15)}catch(e){}
+}
+var lastRev=0,lastScreech=0,noiseBuf=null,wasGas=false,wasBrake=false;
+function rev(sp){ // a short engine blip when the gas goes down
+  var t=performance.now();if(!AC||!soundOn||t-lastRev<220)return;lastRev=t;
+  try{var n=AC.currentTime,o=AC.createOscillator(),f=AC.createBiquadFilter(),g=AC.createGain(),base=70+sp*0.3;
+    o.type='sawtooth';o.frequency.setValueAtTime(base,n);o.frequency.exponentialRampToValueAtTime(base*1.9,n+0.3);
+    f.type='lowpass';f.frequency.value=750;
+    g.gain.setValueAtTime(0.0001,n);g.gain.exponentialRampToValueAtTime(0.08,n+0.04);g.gain.exponentialRampToValueAtTime(0.0001,n+0.42);
+    o.connect(f);f.connect(g);g.connect(AC.destination);o.start(n);o.stop(n+0.45)}catch(e){}
+}
+function screech(sp){ // tyre squeal when the brake goes down at speed; longer the faster you were going
+  var t=performance.now();if(!AC||!soundOn||t-lastScreech<300)return;lastScreech=t;
+  try{
+    if(!noiseBuf){noiseBuf=AC.createBuffer(1,AC.sampleRate*0.6,AC.sampleRate);var d=noiseBuf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+    var n=AC.currentTime,dur=clamp(sp/450,0.18,0.55),src=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();
+    src.buffer=noiseBuf;f.type='bandpass';f.Q.value=9;f.frequency.setValueAtTime(2100,n);f.frequency.exponentialRampToValueAtTime(1500,n+dur);
+    g.gain.setValueAtTime(0.0001,n);g.gain.exponentialRampToValueAtTime(0.22,n+0.03);g.gain.exponentialRampToValueAtTime(0.0001,n+dur);
+    src.connect(f);f.connect(g);g.connect(AC.destination);src.start(n);src.stop(n+dur+0.05)}catch(e){}
+}
+function thud(){
+  var t=performance.now();if(!AC||!soundOn||t-lastThud<140)return;lastThud=t;
+  try{var o=AC.createOscillator(),g=AC.createGain();o.type='triangle';o.frequency.value=110;o.frequency.exponentialRampToValueAtTime(45,AC.currentTime+0.12);
+    g.gain.value=0.16;g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.14);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+0.16)}catch(e){}
+}
+
+// ---------------------------------------------------------------- layout and drawing
+function layout(){
+  dpr=Math.min(window.devicePixelRatio||1,3);vw=window.innerWidth;vh=window.innerHeight;
+  cv.width=Math.round(vw*dpr);cv.height=Math.round(vh*dpr);
+  var cs=getComputedStyle($('probe')),it=parseFloat(cs.paddingTop)||0,ir=parseFloat(cs.paddingRight)||0,ib=parseFloat(cs.paddingBottom)||0,il=parseFloat(cs.paddingLeft)||0;
+  portrait=vh>vw;
+  if(!portrait){
+    var pw=clamp(vw*0.17,104,160),h=vh-it-ib;
+    padL={x:il,y:it,w:pw,h:h};padR={x:vw-ir-pw,y:it,w:pw,h:h};
+    region={x:il+pw,y:it,w:vw-il-ir-2*pw,h:h};
+    sc=Math.min(region.w/W,region.h/H);ox=region.x+(region.w-W*sc)/2;oy=region.y+(region.h-H*sc)/2;
+  }else{
+    var ph=clamp(vh*0.26,160,225),w2=(vw-il-ir)/2;
+    padL={x:il,y:vh-ib-ph,w:w2,h:ph};padR={x:il+w2,y:vh-ib-ph,w:w2,h:ph};
+    region={x:il,y:it,w:vw-il-ir,h:vh-it-ib-ph};
+    sc=Math.min(region.w/H,region.h/W);ox=region.x+(region.w-H*sc)/2;oy=region.y+(region.h-W*sc)/2;
+  }
+  pauseBtn=portrait?{x:region.x+region.w-44,y:region.y,w:44,h:44}:{x:region.x+region.w/2-22,y:region.y,w:44,h:36};
+  // controls
+  var bot=padR.y+padR.h-(portrait?12:26),R,gh;
+  if(!portrait){
+    gh=Math.min(100,padR.h*0.3);
+    ui.gas={x:padR.x+padR.w-10-46,y:bot-gh,w:46,h:gh};
+    ui.brake={x:padR.x+10,y:bot-58,w:padR.w-74,h:58};
+    ui.shift={x:padR.x+padR.w/2-27,y:padR.y+62,w:54,h:clamp(ui.gas.y-padR.y-62-18,50,84)};
+    R=Math.min(padL.w/2-10,62);ui.wheel={x:padL.x+padL.w/2,y:bot-R-4,r:R};
+  }else{
+    gh=Math.min(108,padR.h-56);
+    ui.gas={x:padR.x+padR.w-12-46,y:bot-gh,w:46,h:gh};
+    ui.shift={x:padR.x+12,y:bot-Math.min(84,gh),w:40,h:Math.min(84,gh)};
+    ui.brake={x:ui.shift.x+48,y:bot-58,w:ui.gas.x-8-(ui.shift.x+48),h:58};
+    R=Math.min((padL.h-52)/2-4,padL.w/2-14,66);ui.wheel={x:padL.x+padL.w/2,y:padL.y+48+(padL.h-52)/2,r:R};
+  }
+  ui.split=(ui.brake.x+ui.brake.w+ui.gas.x)/2;
+  paintTrack();
+}
+function paintTrack(){ // draw the track once at screen resolution
+  var t=document.createElement('canvas');t.width=Math.ceil(W*sc*dpr);t.height=Math.ceil(H*sc*dpr);
+  var g=t.getContext('2d');g.scale(sc*dpr,sc*dpr);drawTrack(g);trackImg=t;
+}
+function drawTrack(g){
+  var i;
+  g.fillStyle='#070b16';g.fillRect(0,0,W,H);
+  g.lineJoin='round';
+  function path(){g.beginPath();g.moveTo(PX[0],PY[0]);for(i=1;i<N;i++)g.lineTo(PX[i],PY[i]);g.closePath()}
+  // barrier: a red and white kerb right round both edges
+  path();g.strokeStyle='#eef2fb';g.lineWidth=HALF*2+9;g.stroke();
+  g.setLineDash([9,9]);path();g.strokeStyle='#ff4d4d';g.stroke();g.setLineDash([]);
+  path();g.strokeStyle='#18223f';g.lineWidth=HALF*2;g.stroke();
+  g.fillStyle='rgba(138,150,179,.22)';
+  for(i=0;i<N;i+=6){g.save();g.translate(PX[i],PY[i]);g.rotate(Math.atan2(TY[i],TX[i]));g.fillRect(-5,-1,10,2);g.restore()}
+  // start and finish line
+  g.save();g.translate(PX[0],PY[0]);g.rotate(Math.atan2(TY[0],TX[0]));
+  var sq=(HALF*2)/10;
+  for(i=0;i<10;i++)for(var j=0;j<2;j++){g.fillStyle=((i+j)%2)?'#eef2fb':'#070b16';g.fillRect(j*sq-sq,-HALF+i*sq,sq,sq)}
+  g.restore();
+}
+function carShape(color,mine){ // drawn pointing right, about 24 long, around 0,0
+  if(mine){ctx.strokeStyle='rgba(238,242,251,.55)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(0,0,15,0,TAU);ctx.stroke()}
+  ctx.fillStyle='#aab3c8';
+  ctx.fillRect(-9,-7.5,6,3.4);ctx.fillRect(-9,4.1,6,3.4);ctx.fillRect(4,-7,5,3);ctx.fillRect(4,4,5,3);
+  ctx.fillStyle=color;
+  ctx.fillRect(-10,-3.6,17,7.2);ctx.fillRect(7,-2.2,5,4.4);ctx.fillRect(-12,-6,2.6,12);ctx.fillRect(10.5,-5,1.8,10);
+  ctx.fillStyle='#070b16';ctx.fillRect(-3,-2.2,5,4.4);
+}
+function drawCar(c,mine){
+  ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.h);ctx.scale(1.2,1.2);carShape(c.color,mine);ctx.restore();
+}
+function text(s,x,y,size,color,align){
+  ctx.font='400 '+size+'px "Press Start 2P",ui-monospace,Menlo,monospace';ctx.fillStyle=color;ctx.textAlign=align||'center';ctx.textBaseline='middle';ctx.fillText(s,x,y);
+}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function flash(s,ms){msg=s;msgUntil=performance.now()+(ms||1500)}
+function pedal(r,on,color,label){
+  rr(r.x,r.y,r.w,r.h,8);ctx.fillStyle=on?color:'#141d36';ctx.fill();ctx.strokeStyle='#3a4a78';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle=on?'rgba(4,10,20,.3)':'#243260';
+  for(var y=r.y+9;y<r.y+r.h-24;y+=9)ctx.fillRect(r.x+7,y,r.w-14,3);
+  text(label,r.x+r.w/2,r.y+r.h-11,7,on?'#04121c':'#8a96b3');
+}
+// A flag on a pole, waving. check=true is the chequered flag, otherwise the green one.
+function drawFlag(cx,cy,w,h,t,check,alpha){
+  var n=14,cw=w/n,x0=cx-w/2,rows=5,rh=h/rows,i,j;
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.fillStyle='#c9d2e6';ctx.fillRect(x0-5,cy-h/2-5,4,h*1.75);
+  for(i=0;i<n;i++){
+    var dy=Math.sin(t*9-i*0.55)*h*0.14*(i/n+0.12),x=x0+i*cw,y=cy-h/2+dy;
+    if(check){for(j=0;j<rows;j++){ctx.fillStyle=((i>>1)+j)%2?'#05070d':'#eef2fb';ctx.fillRect(x,y+j*rh,cw+0.6,rh+0.6)}}
+    else{ctx.fillStyle=Math.cos(t*9-i*0.55)>0?'#4ade80':'#22c55e';ctx.fillRect(x,y,cw+0.6,h)}
+  }
+  ctx.restore();
+}
+// Start lights: red, then yellow, then green.
+function drawLights(mx,my,on){
+  var cols=['#ff4d4d','#ffd23f','#4ade80'];
+  rr(mx-72,my-25,144,50,12);ctx.fillStyle='#0b1122';ctx.fill();ctx.strokeStyle='#33426b';ctx.lineWidth=2;ctx.stroke();
+  for(var i=0;i<3;i++){
+    ctx.save();
+    if(on===i+1){ctx.shadowColor=cols[i];ctx.shadowBlur=18}
+    ctx.beginPath();ctx.arc(mx+(i-1)*44,my,15,0,TAU);ctx.fillStyle=on===i+1?cols[i]:'#141d36';ctx.fill();
+    ctx.restore();
+    ctx.beginPath();ctx.arc(mx+(i-1)*44,my,15,0,TAU);ctx.strokeStyle='#33426b';ctx.lineWidth=2;ctx.stroke();
+  }
+}
+// The leader board: finishers leave the road and their cars line up here, first place first.
+function drawBoard(now){
+  if(!board.length)return;
+  var B=TRACKS[track].board,a=toScreen(B[0],B[1]),b=toScreen(B[0]+288,B[1]+40);
+  var x=Math.min(a[0],b[0]),y=Math.min(a[1],b[1]),w=Math.abs(b[0]-a[0]),h=Math.abs(b[1]-a[1]);
+  rr(x-3,y-3,w+6,h+6,5);ctx.fillStyle='rgba(11,17,34,.9)';ctx.fill();ctx.strokeStyle='#1e2a48';ctx.lineWidth=1.5;ctx.stroke();
+  for(var k=0;k<board.length&&k<8;k++){
+    var c=board[k],p=toScreen(B[0]+18+36*k,B[1]+20),age=(now-c.popT)/1000;
+    var pop=age<0.35?1+1.6*(1-age/0.35):1;                         // the car pops in big and settles
+    text(String(k+1),p[0],p[1]-11*sc,Math.max(6,9*sc),c===me?'#ffd23f':'#8a96b3');
+    ctx.save();ctx.translate(p[0],p[1]+7*sc);ctx.scale(sc*1.15*pop,sc*1.15*pop);carShape(c.color,c===me);ctx.restore();
+  }
+}
+function drawPads(now){
+  ctx.fillStyle='#0b1122';ctx.fillRect(padL.x,padL.y,padL.w,padL.h);ctx.fillRect(padR.x,padR.y,padR.w,padR.h);
+  ctx.strokeStyle='#1e2a48';ctx.lineWidth=2;
+  if(portrait){ctx.beginPath();ctx.moveTo(padL.x,padL.y);ctx.lineTo(padR.x+padR.w,padL.y);ctx.moveTo(padR.x,padR.y);ctx.lineTo(padR.x,padR.y+padR.h);ctx.stroke()}
+  else{ctx.beginPath();ctx.moveTo(padL.x+padL.w,padL.y);ctx.lineTo(padL.x+padL.w,padL.y+padL.h);ctx.moveTo(padR.x,padR.y);ctx.lineTo(padR.x,padR.y+padR.h);ctx.stroke()}
+  // read-outs
+  var hx=padL.x+padL.w/2,hy=padL.y+18,rx=padR.x+padR.w/2;
+  var lap=clamp(Math.floor(Math.max(me.s,0)/N)+1,1,laps);
+  var t=phase==='count'?0:(me.fin||Math.max(0,(paused?pauseAt:now)-raceStart));
+  text('LAP '+lap+'/'+laps,hx,hy,10,'#eef2fb');text(fmtTime(t),hx,hy+18,8,'#8a96b3');
+  text('PLACE '+place(me)+'/'+cars.length,rx,hy,10,'#ffd23f');
+  var w=ui.wheel,on=pointerOn('L');
+  if(scheme==='buttons'){
+    text('◀',w.x,w.y,30,on?'#38bdf8':'#2a3964');text('LEFT',w.x,w.y+34,8,'#8a96b3');
+    var py=ui.gas.y+ui.gas.h/2;
+    text('▶',rx,py,30,pointerOn('R')?'#38bdf8':'#2a3964');text(on&&pointerOn('R')?(bothT>0.35?'REVERSE':'BRAKE'):'RIGHT',rx,py+34,8,on&&pointerOn('R')?'#ff4d4d':'#8a96b3');
+    ctx.fillStyle='rgba(138,150,179,.7)';ctx.fillRect(pauseBtn.x+pauseBtn.w/2-6,pauseBtn.y+10,4,12);ctx.fillRect(pauseBtn.x+pauseBtn.w/2+2,pauseBtn.y+10,4,12);
+    return;
+  }
+  // wheel
+  ctx.save();ctx.translate(w.x,w.y);ctx.rotate(me.wheel);
+  ctx.strokeStyle=on?'#38bdf8':'#3a4a78';ctx.lineWidth=9;ctx.beginPath();ctx.arc(0,0,w.r-5,0,TAU);ctx.stroke();
+  ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-(w.r-5),0);ctx.lineTo(w.r-5,0);ctx.moveTo(0,0);ctx.lineTo(0,w.r-5);ctx.stroke();
+  ctx.fillStyle=on?'#38bdf8':'#3a4a78';ctx.beginPath();ctx.arc(0,0,11,0,TAU);ctx.fill();
+  ctx.fillStyle='#ffd23f';ctx.fillRect(-4,-w.r,8,11);
+  ctx.restore();
+  // pedals
+  pedal(ui.brake,me.brake,'#ff4d4d','BRAKE');
+  pedal(ui.gas,me.gas,gear>0?'#38bdf8':'#ff9f43','GAS');
+  // shifter
+  var s=ui.shift,sx=s.x+14,lx=s.x+28+(s.w-28)/2,ky=gear>0?s.y+13:s.y+s.h-13;
+  rr(sx-7,s.y,14,s.h,7);ctx.fillStyle='#141d36';ctx.fill();ctx.strokeStyle='#3a4a78';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(sx,ky,12,0,TAU);ctx.fillStyle=gear>0?'#38bdf8':'#ff9f43';ctx.fill();
+  text('D',lx,s.y+14,12,gear>0?'#38bdf8':'#56628a');text('R',lx,s.y+s.h-12,12,gear<0?'#ff9f43':'#56628a');
+  // pause
+  ctx.fillStyle='rgba(138,150,179,.7)';var bx=pauseBtn.x+pauseBtn.w/2,by=pauseBtn.y+16;ctx.fillRect(bx-6,by-6,4,12);ctx.fillRect(bx+2,by-6,4,12);
+}
+function pointerOn(side){for(var id in pointers)if(pointers[id].side===side)return true;return false}
+function toScreen(x,y){return portrait?[ox+(H-y)*sc,oy+x*sc]:[ox+x*sc,oy+y*sc]}
+function render(now){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#070b16';ctx.fillRect(0,0,vw,vh);
+  ctx.save();
+  if(portrait){ctx.translate(ox+H*sc,oy);ctx.rotate(Math.PI/2)}else ctx.translate(ox,oy);
+  ctx.scale(sc,sc);
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(trackImg,0,0,W,H);
+  var i,c;
+  for(i=0;i<cars.length;i++){c=cars[i];if(c!==me&&!c.fin)drawCar(c,false)}
+  if(me&&!me.fin)drawCar(me,true);
+  ctx.restore();
+  if(mode!=='race')return;
+  drawBoard(now);
+  drawPads(now);
+  var mx=region.x+region.w/2,my=region.y+region.h/2,p,since=now-raceStart;
+  if(phase==='count'){
+    var left=-since/1000;
+    drawLights(mx,my,left>3?0:left>1.5?1:2);
+    p=toScreen(me.x,me.y);text('YOU',p[0],p[1]-22,8,'#eef2fb');
+    text(scheme==='wheel'?'LEFT THUMB: TURN THE WHEEL':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#8a96b3');
+    text(scheme==='buttons'?'BOTH THUMBS = BRAKE':'RIGHT THUMB: GAS AND BRAKE',mx,my+64,portrait?7:8,'#8a96b3');
+  }else if(since<1600&&phase==='go'){
+    var fade=since>1200?1-(since-1200)/400:1;
+    ctx.save();ctx.globalAlpha=fade;drawLights(mx,my,3);ctx.restore();
+    drawFlag(mx,my-78,84,52,now/1000,false,fade);
+    ctx.save();ctx.globalAlpha=fade;text('GO!',mx,my+50,22,'#4ade80');ctx.restore();
+  }
+  var m='';
+  if(now<msgUntil)m=msg;
+  else if(phase==='go'&&me.wrongT>0.8)m='WRONG WAY';
+  if(phase==='done'&&me.fin){
+    var dn=now-doneAt;
+    if(dn<4000)drawFlag(mx,my-84,120,75,now/1000,true,dn>3500?1-(dn-3500)/500:1);   // your chequered flag
+    else if(online&&!m)m='WATCHING THE FINISH';
+  }
+  if(m){ctx.fillStyle='rgba(7,11,22,.75)';var tw=m.length*13+24;ctx.fillRect(mx-tw/2,my-17,tw,34);text(m,mx,my+1,12,'#ffd23f')}
+}
+
+// ---------------------------------------------------------------- main loop
+var lastT=0,acc=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!trackImg)return;
+  var dt=Math.min(0.1,(now-lastT)/1000);lastT=now;
+  if(!paused||online){
+    if(mode==='race'&&phase==='count'){
+      // red light and a low beep, yellow light and a higher beep, then green and the long one
+      var left=(raceStart-now)/1000,step=left<=1.5?2:left<=3?1:0;
+      if(step>lightStep){lightStep=step;beep(step===1?330:440,.2)}
+      if(now>=raceStart){phase='go';beep(880,.45)}
+    }
+    acc+=dt;var n=0;
+    while(acc>=DT&&n<12){physics(now);acc-=DT;n++}
+    if(n===12)acc=0;
+    if(online)netFrame(now,dt);
+    if(mode==='race'&&me&&phase==='go'&&!finalLapShown&&laps>1&&me.s>=(laps-1)*N){finalLapShown=true;flash('FINAL LAP',1600);beep(660,.1)}
+    if(mode==='race'&&!online&&phase==='done'&&!resultsShown&&now-doneAt>3000){resultsShown=true;showPracticeResults()}
+  }
+  render(now);
+}
+
+// ---------------------------------------------------------------- screens
+function hideAll(){['menu','lobby','results','pause'].forEach(function(id){$(id).hidden=true})}
+function toMenu(note){
+  hideAll();$('menu').hidden=false;
+  $('menuMsg').hidden=!note;$('menuMsg').textContent=note||'';
+  paintTrackSeg(track);paintMenuColor();
+  attract();
+}
+function openPause(){
+  if(mode!=='race')return;
+  paused=true;pauseAt=performance.now();pointers={};
+  $('pauseTitle').textContent=online?'THE RACE IS STILL RUNNING':'PAUSED';
+  $('pause').hidden=false;
+}
+function closePause(){
+  if(!online)raceStart+=performance.now()-pauseAt;
+  paused=false;lastT=performance.now();$('pause').hidden=true;audioInit();
+}
+function listItem(pos,color,name,right,mine){
+  var li=document.createElement('li');if(mine)li.className='me';
+  var a=document.createElement('span');a.className='pos';a.textContent=pos;
+  var b=document.createElement('span');b.className='chip';b.style.background=color;
+  var c=document.createElement('span');c.className='nm';c.textContent=name;
+  var d=document.createElement('span');d.textContent=right;
+  li.appendChild(a);li.appendChild(b);li.appendChild(c);li.appendChild(d);return li;
+}
+function showPracticeResults(){
+  var order=cars.slice().sort(function(a,b){return (a.fin&&b.fin)?a.fin-b.fin:a.fin?-1:b.fin?1:b.s-a.s});
+  var L=$('resList');L.textContent='';
+  order.forEach(function(c,i){L.appendChild(listItem(ordinal(i+1),c.color,c.name,c.fin?fmtTime(c.fin):'',c===me))});
+  $('resTitle').textContent='YOU FINISHED '+ordinal(order.indexOf(me)+1);
+  $('resWait').hidden=true;$('bAgain').hidden=false;$('bAgain').textContent='RACE AGAIN';$('bResMenu').textContent='MENU';
+  $('results').hidden=false;
+}
+function seg(id,value,onpick){
+  var el=$(id),bs=el.querySelectorAll('button');
+  function paint(v){for(var i=0;i<bs.length;i++)bs[i].setAttribute('aria-pressed',String(bs[i].dataset.v===String(v)))}
+  el.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;paint(b.dataset.v);onpick(b.dataset.v)});
+  paint(value);return paint;
+}
+// colour swatches: one button per colour
+function buildSw(el,onpick){
+  COLORS.forEach(function(c,i){var b=document.createElement('button');b.type='button';b.className='sw';b.style.background=c;b.dataset.c=i;b.setAttribute('aria-label',COLOR_NAMES[i]);el.appendChild(b)});
+  el.addEventListener('click',function(e){var b=e.target.closest('button');if(b&&!b.disabled)onpick(+b.dataset.c)});
+}
+function paintSw(el,mine,taken,locked){ // locked: this player is Jeff, who is always blue
+  var bs=el.children;
+  for(var i=0;i<bs.length;i++){
+    var on=i===mine;bs[i].setAttribute('aria-pressed',String(on));
+    bs[i].disabled=!on&&(locked||i===BLUE||taken.indexOf(i)>=0);
+  }
+}
+function paintMenuColor(){
+  var j=isJeff($('name').value);
+  paintSw($('menuSw'),myColor(),[],j);
+  $('colorNote').textContent=j?'Jeff always drives the blue car.':'Pick your car. Blue is saved for Jeff. In a room, colors are first come, first served.';
+}
+var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it. It goes all the way round, and the car turns exactly as far as the wheel. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
+  slide:'Slide: hold your left thumb down and slide it left or right; let go to straighten. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
+  buttons:'Buttons: the car drives itself forward. Hold the left or right side to turn, both sides to brake, and keep holding to back up.'};
+function paintHow(){$('howto').textContent=HOW[scheme]}
+
+// ---------------------------------------------------------------- online rooms
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+function myName(){var n=$('name').value.trim()||'Racer';store('name',n);return n}
+function connect(first){
+  audioInit();
+  if(ws&&ws.readyState===1){send(first);return}
+  $('menuMsg').hidden=false;$('menuMsg').textContent='Connecting… the first connection can take up to a minute.';
+  // the socket lives beside the page, so the game also works from a folder (lubowcade.com/miami800/)
+  try{var u=new URL('ws',location.href);u.protocol=location.protocol==='https:'?'wss:':'ws:';u.search='';u.hash='';ws=new WebSocket(u.href)}
+  catch(e){toMenu('Could not connect. Check your signal and try again.');return}
+  ws.onopen=function(){$('menuMsg').hidden=true;send(first)};
+  ws.onmessage=function(e){var m;try{m=JSON.parse(e.data)}catch(_){return}onMsg(m)};
+  ws.onclose=function(){var was=online||!$('lobby').hidden;ws=null;online=false;if(was||mode==='menu')toMenu(was?'Connection lost. Join the room again with the same code.':'Could not connect. Try again in a few seconds.')};
+}
+function leaveRoom(){online=false;if(ws){ws.onclose=null;try{ws.close()}catch(e){}ws=null}}
+function onMsg(m){
+  if(m.t==='err'){toMenu(m.msg)}
+  else if(m.t==='room'){
+    net=m;
+    if(mode==='race'&&online){ // someone left mid-race
+      cars=cars.filter(function(c){return c===me||m.players.some(function(p){return p.id===c.id})});
+      board=board.filter(function(c){return cars.indexOf(c)>=0});
+      if(m.state==='lobby'){mode='menu';online=false;setTrack(m.track);showLobby()}
+    }else{
+      if(m.track!==track&&mode==='menu'){setTrack(m.track);attract()}   // the host changed the track: show it behind the room
+      if(m.state!=='results'||$('results').hidden)showLobby();
+    }
+    if(!$('results').hidden)paintResultsButtons();
+  }
+  else if(m.t==='go'){
+    laps=m.laps;setTrack(m.track);cars=[];me=null;
+    net.players.forEach(function(p){
+      if(!p.racing)return;
+      var c=makeCar(p.slot,{id:p.id,name:p.name,color:COLORS[p.color],remote:p.id!==net.you});
+      if(p.id===net.you){me=c;c.name=p.name}
+      c.sx=c.x;c.sy=c.y;c.sh=c.h;cars.push(c);
+    });
+    if(!me){showLobby();return}
+    online=true;lastSend=0;beginRace(performance.now()+m.in);
+  }
+  else if(m.t==='snap'){
+    if(!online)return;var now=performance.now();
+    m.p.forEach(function(d){
+      if(d[0]===net.you)return;
+      for(var i=0;i<cars.length;i++){var c=cars[i];if(c.id===d[0]){
+        if(!c.st){c.x=d[1];c.y=d[2];c.h=d[3]}
+        c.sx=d[1];c.sy=d[2];c.sh=d[3];c.svx=d[4];c.svy=d[5];c.s=d[6];c.st=now;
+        if(d[7]&&!c.fin){c.fin=d[7];addBoard(c,now)}
+        break}}
+    });
+  }
+  else if(m.t==='end'){
+    var L=$('resList');L.textContent='';var mine=0;
+    m.results.forEach(function(r,i){
+      cars.forEach(function(c){if(c.id===r.id&&r.time&&!c.fin){c.fin=r.time;addBoard(c,performance.now())}});   // the last car home
+      if(r.id===net.you)mine=i+1;L.appendChild(listItem(ordinal(i+1),COLORS[r.color],r.name,r.time?fmtTime(r.time):'DNF',r.id===net.you))});
+    $('resTitle').textContent=mine?'YOU FINISHED '+ordinal(mine):'RESULTS';
+    paused=false;$('pause').hidden=true;phase='done';
+    $('results').hidden=false;paintResultsButtons();
+  }
+}
+function paintResultsButtons(){
+  var host=net.host===net.you;
+  $('bAgain').hidden=!host;$('bAgain').textContent='BACK TO ROOM';$('bResMenu').textContent='LEAVE';
+  $('resWait').hidden=host;$('resWait').textContent='Waiting for the host to start the next race.';
+}
+function netFrame(now,dt){
+  var i,c;
+  for(i=0;i<cars.length;i++){c=cars[i];if(!c.remote||!c.st||c.fin)continue;
+    var age=Math.min(0.25,(now-c.st)/1000),k=Math.min(1,dt*14);
+    c.x+=(c.sx+c.svx*age-c.x)*k;c.y+=(c.sy+c.svy*age-c.y)*k;c.h+=angDiff(c.sh,c.h)*k;c.vx=c.svx;c.vy=c.svy}
+  if(me&&now-lastSend>66&&phase!=='count'){lastSend=now;
+    send({t:'s',d:[Math.round(me.x*10)/10,Math.round(me.y*10)/10,Math.round(me.h*100)/100,Math.round(me.vx),Math.round(me.vy),Math.round(me.s)]})}
+}
+function showLobby(){
+  hideAll();$('lobby').hidden=false;if(mode==='race'&&!online){/* keep */}else if(mode!=='menu'||!cars.length||me){attract()}
+  var host=net.host===net.you,racing=net.state!=='lobby',mine=null,taken=[];
+  $('lobCode').textContent=net.code;
+  var L=$('lobList');L.textContent='';
+  net.players.forEach(function(p){
+    if(p.id===net.you)mine=p;else taken.push(p.color);
+    L.appendChild(listItem('',COLORS[p.color],p.name+(p.id===net.you?' (you)':''),p.id===net.host?'HOST':'',p.id===net.you))});
+  if(mine)paintSw($('lobSw'),mine.color,taken,mine.color===BLUE&&isJeff(mine.name));
+  paintLobLaps(net.laps);paintLobTrack(net.track);
+  $('lobHostRow').hidden=!host||racing;
+  $('bStart').hidden=!host||racing;
+  var what=TRACKS[net.track].name+' track, '+net.laps+' laps. ',left=8-net.players.length;
+  $('lobWait').textContent=racing?'A race is running. You are in for the next one.':
+    host?(net.players.length<2?'You can start alone, or wait for friends to join.':net.players.length+' racers ready'+(left?', room for '+left+' more.':'. The room is full.')):
+    what+'Waiting for the host to start.';
+}
+
+// ---------------------------------------------------------------- buttons and settings
+seg('segSteer',scheme,function(v){scheme=v;store('steer2',v);paintHow()});
+var paintLaps=seg('segLaps',laps,function(v){laps=+v;store('laps',v)});
+var paintTrackSeg=seg('segTrack',1,function(v){setTrack(v);store('track',v);attract()});
+seg('segSound',soundOn?'on':'off',function(v){soundOn=v==='on';store('sound',v)});
+var paintLobLaps=seg('segLobLaps',5,function(v){send({t:'laps',n:+v})});
+var paintLobTrack=seg('segLobTrack',1,function(v){send({t:'track',n:+v})});
+buildSw($('menuSw'),function(c){store('color',c);paintMenuColor()});
+buildSw($('lobSw'),function(c){store('color',c);send({t:'color',n:c})});
+$('name').addEventListener('input',paintMenuColor);
+paintHow();
+COLORS.forEach(function(c){var i=document.createElement('i');i.style.background=c;$('stripe').appendChild(i)});
+
+$('bPractice').onclick=function(){audioInit();startPractice()};
+$('bResume').onclick=closePause;
+$('bQuit').onclick=function(){paused=false;if(online)leaveRoom();toMenu()};
+$('bResMenu').onclick=function(){if(online||ws)leaveRoom();toMenu()};
+$('bAgain').onclick=function(){if(online)send({t:'lobby'});else startPractice()};
+$('bCreate').onclick=function(){connect({t:'create',name:myName(),color:myColor(),track:track,laps:laps})};
+$('bJoin').onclick=function(){var c=$('code').value.trim().toUpperCase();if(c.length!==4){$('menuMsg').hidden=false;$('menuMsg').textContent='Type the four-letter room code first.';return}connect({t:'join',code:c,name:myName(),color:myColor()})};
+$('bStart').onclick=function(){audioInit();send({t:'start'})};
+$('bLeave').onclick=function(){leaveRoom();toMenu()};
+$('bCopy').onclick=function(){
+  var url=location.origin+location.pathname+'?room='+net.code,b=$('bCopy');
+  function shown(){$('lobLink').hidden=false;$('lobLink').textContent=url}
+  function copy(){try{navigator.clipboard.writeText(url).then(function(){b.textContent='LINK COPIED';setTimeout(function(){b.textContent='INVITE FRIENDS'},1500)},shown)}catch(e){shown()}}
+  // phones get their share sheet (Messages and so on); everything else copies the link
+  if(navigator.share&&/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent))navigator.share({title:'Miami 800',text:'Race me in Miami 800. Room '+net.code,url:url}).catch(function(e){if(!e||e.name!=='AbortError')copy()});
+  else copy();
+};
+
+// ---------------------------------------------------------------- start up
+window.addEventListener('resize',layout);window.addEventListener('orientationchange',function(){setTimeout(layout,250)});
+document.addEventListener('visibilitychange',function(){if(document.hidden&&mode==='race'&&!online&&!paused&&phase==='go')openPause()});
+try{$('name').value=store('name')||''}catch(e){}
+var t0=parseInt(store('track'),10);setTrack(t0>=0?t0:1);
+paintTrackSeg(track);paintMenuColor();
+layout();attract();requestAnimationFrame(function(t){lastT=t;frame(t)});
+if(document.fonts&&document.fonts.load)document.fonts.load('12px "Press Start 2P"').catch(function(){});
+// Rooms need this game's own server. Ask it; a preview page has none and stays practice only.
+fetch('health',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+  canOnline=!!(j&&j.game==='miami800');
+}).catch(function(){canOnline=false}).then(function(){
+  $('onlineBox').hidden=!canOnline;$('offlineNote').hidden=canOnline;
+  var q=/[?&]room=([A-Za-z]{4})/.exec(location.search);
+  if(canOnline&&q){$('code').value=q[1].toUpperCase();$('menuMsg').hidden=false;$('menuMsg').textContent='Enter your name and tap JOIN to race in room '+q[1].toUpperCase()+'.'}
+});
+window.__m8={get cars(){return cars},get me(){return me},get phase(){return phase},get mode(){return mode},get N(){return N},
+  set autopilot(v){autopilot=v},startPractice:startPractice,get laps(){return laps},set laps(v){laps=v},get ui(){return ui},get gear(){return gear},
+  get track(){return track},setTrack:function(k){setTrack(k);attract()},get board(){return board},get net(){return net}};
+})();
+</script>
+</body>
+</html>
