@@ -1,60 +1,48 @@
-# Draws the Miami 800 icon: the oval track seen from above with its red and white kerb,
-# cars on it, and a blocky 800 in the infield. Run: python3 tools/make_icon.py
+# Draws the Miami 800 icon on a 128x128 grid and blows it up with hard edges, like the 1975 arcade screen:
+# a track of soft white dots, a big white 800 with stepped (pixel-rounded) corners, and the eight cars in their colours.
+# Run: python3 tools/make_icon.py   (writes public/icon-*.png; Lubowcade keeps a copy as public/icons/miami800.png)
 import math, os
 from PIL import Image, ImageDraw
-S = 2048
-img = Image.new('RGB', (S, S), (7, 11, 22))
-d = ImageDraw.Draw(img)
-cx, cy = S / 2, S / 2
+N = 128
+K = (0, 0, 0); DOT = (185, 192, 207); WHITE = (244, 246, 251); TYRE = (170, 179, 200)
+CARS = [(63, 143, 245), (232, 57, 43), (244, 246, 251), (69, 216, 230), (95, 208, 110), (217, 240, 156), (207, 176, 240), (125, 99, 242)]
+img = Image.new('RGB', (N, N), K); d = ImageDraw.Draw(img)
 
-def oval(rx, ry, n=720):
-    # a rounded-rectangle ("stadium") path
-    k = 3.2
-    return [(cx + rx * math.copysign(abs(math.cos(a)) ** (2 / k), math.cos(a)),
-             cy + ry * math.copysign(abs(math.sin(a)) ** (2 / k), math.sin(a))) for a in [i * 2 * math.pi / n for i in range(n)]]
+# track: one row of dots round a rounded square
+m, r, step = 7, 24, 7.0
+pts = []
+def arc(cx, cy, a0, a1):
+    n = max(2, int(abs(a1 - a0) * r / 1.0))
+    for i in range(n): a = a0 + (a1 - a0) * i / n; pts.append((cx + math.cos(a) * r, cy + math.sin(a) * r))
+def line(x0, y0, x1, y1):
+    n = int(math.hypot(x1 - x0, y1 - y0))
+    for i in range(n): pts.append((x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n))
+lo, hi = m, N - 1 - m
+line(lo + r, lo, hi - r, lo); arc(hi - r, lo + r, -math.pi / 2, 0); line(hi, lo + r, hi, hi - r); arc(hi - r, hi - r, 0, math.pi / 2)
+line(hi - r, hi, lo + r, hi); arc(lo + r, hi - r, math.pi / 2, math.pi); line(lo, hi - r, lo, lo + r); arc(lo + r, lo + r, math.pi, 1.5 * math.pi)
+total = len(pts); count = round(total / step)
+for i in range(count):
+    x, y = pts[int(i * total / count)]
+    d.rectangle([round(x) - 1, round(y) - 1, round(x) + 1, round(y) + 1], fill=DOT)
 
-mid = oval(S * 0.36, S * 0.34)
-def stroke(pts, w, col):
-    d.line(pts + pts[:2], fill=col, width=w, joint='curve')
-    r = w / 2
-    for (x, y) in pts[::4]: d.ellipse([x - r, y - r, x + r, y + r], fill=col)
-road = int(S * 0.2)
-stroke(mid, road + 70, (238, 242, 251))
-# red dashes on the white kerb
-for i in range(0, len(mid), 24):
-    seg = mid[i:i + 13]
-    d.line(seg, fill=(255, 77, 77), width=road + 70)
-stroke(mid, road, (24, 34, 63))
-# start line
-x0 = cx + S * 0.02; sq = road / 6
-for i in range(6):
-    for j in range(2):
-        col = (238, 242, 251) if (i + j) % 2 else (7, 11, 22)
-        y = cy - S * 0.34 - road / 2 + i * sq
-        d.rectangle([x0 + j * sq, y, x0 + (j + 1) * sq, y + sq], fill=col)
-
-def car(i, lat, col):
-    x, y = mid[i]; x2, y2 = mid[(i + 3) % len(mid)]
-    h = math.atan2(y2 - y, x2 - x); nx, ny = -math.sin(h), math.cos(h)
-    x += nx * lat; y += ny * lat
-    c = Image.new('RGBA', (360, 360), (0, 0, 0, 0)); g = ImageDraw.Draw(c); u = 11
-    def r(a, b, w, hh, f): g.rectangle([180 + a * u, 180 + b * u, 180 + (a + w) * u, 180 + (b + hh) * u], fill=f)
-    t = (170, 179, 200)
-    r(-9, -7.5, 6, 3.4, t); r(-9, 4.1, 6, 3.4, t); r(4, -7, 5, 3, t); r(4, 4, 5, 3, t)
-    r(-10, -3.6, 17, 7.2, col); r(7, -2.2, 5, 4.4, col); r(-12, -6, 2.6, 12, col); r(10.5, -5, 1.8, 10, col)
-    r(-3, -2.2, 5, 4.4, (7, 11, 22))
-    c = c.rotate(-math.degrees(h), resample=Image.BICUBIC)
-    img.paste(c, (int(x - 180), int(y - 180)), c)
-car(628, -60, (56, 189, 248)); car(575, 70, (255, 77, 77)); car(250, -40, (255, 210, 63)); car(110, 60, (74, 222, 128)); car(400, 50, (255, 159, 67))
-
-# blocky 800 in the infield
-D = {'8': ['111', '101', '111', '101', '111'], '0': ['111', '101', '101', '101', '111']}
-b = S * 0.036; gap = b * 0.9; w = 3 * b * 3 + 2 * gap; x = cx - w / 2; y = cy - 2.5 * b
+# 800: 7x9 cells per digit, corner cells left out so the corners step round
+GLYPH = {'8': ['.11111.', '1100011', '1100011', '1100011', '.11111.', '1100011', '1100011', '1100011', '.11111.'],
+         '0': ['.11111.', '1100011', '1100011', '1100011', '1100011', '1100011', '1100011', '1100011', '.11111.']}
+u = 4; gap = 5; w = 3 * 7 * u + 2 * gap; x = (N - w) // 2; y = 23
 for ch in '800':
-    for ry, row in enumerate(D[ch]):
+    for ry, row in enumerate(GLYPH[ch]):
         for rx, v in enumerate(row):
-            if v == '1': d.rectangle([x + rx * b, y + ry * b, x + (rx + 1) * b + 1, y + (ry + 1) * b + 1], fill=(255, 210, 63))
-    x += 3 * b + gap
+            if v == '1': d.rectangle([x + rx * u, y + ry * u, x + rx * u + u - 1, y + ry * u + u - 1], fill=WHITE)
+    x += 7 * u + gap
+
+# the eight cars, drawn exactly as in the game (wings, tyres, cockpit), in two rows of four
+def car(cx, cy, col):
+    def rct(a, b, ww, hh, f): d.rectangle([cx + a, cy + b, cx + a + ww - 1, cy + b + hh - 1], fill=f)
+    rct(-9, -8, 6, 4, TYRE); rct(-9, 4, 6, 4, TYRE); rct(4, -7, 5, 3, TYRE); rct(4, 4, 5, 3, TYRE)
+    rct(-10, -4, 17, 8, col); rct(7, -2, 5, 4, col); rct(-12, -6, 3, 12, col); rct(10, -5, 2, 10, col); rct(-3, -2, 5, 4, K)
+for i, col in enumerate(CARS):
+    car(26 + (i % 4) * 26, 79 + (i // 4) * 21, col)
+
 out = os.path.join(os.path.dirname(__file__), '..', 'public')
 for n in (1024, 512, 192, 180):
-    img.resize((n, n), Image.LANCZOS).save(os.path.join(out, 'icon-%d.png' % n))
+    img.resize((n, n), Image.NEAREST if n % N == 0 else Image.LANCZOS).save(os.path.join(out, 'icon-%d.png' % n))

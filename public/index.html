@@ -31,6 +31,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .overlay[hidden]{display:none}
 .panel{width:100%;max-width:440px;margin:auto;display:flex;flex-direction:column;gap:12px;
   background:var(--pad);border:2px solid var(--line);padding:16px}
+#logo{align-self:center;border-radius:14px;image-rendering:pixelated}
 h1{font:400 22px/1.1 var(--display);margin:0;letter-spacing:.04em;text-align:center}
 h1 b{color:var(--hot);font-weight:400}
 h2{font:400 13px/1.3 var(--display);margin:0;text-align:center;text-wrap:balance}
@@ -75,7 +76,7 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
   .panel{max-width:700px;gap:8px;padding:12px}
   .cols{flex-direction:row;gap:14px}
   .cols>.col{flex:1 1 0;min-width:0;gap:8px}
-  .tag,#lobHint{display:none}
+  .tag,#lobHint,#logo{display:none}
   h1{font-size:16px}
   p{font-size:11px;line-height:1.35}
   button.b{padding:9px 8px}
@@ -91,6 +92,7 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
 
 <div class="overlay" id="menu">
   <div class="panel">
+    <img id="logo" src="icon-192.png" alt="" width="64" height="64" onerror="this.remove()">
     <h1>MIAMI <b>800</b></h1>
     <div class="stripe" id="stripe"></div>
     <p class="tag">Up to eight cars, three tracks, the whole race on one screen.</p>
@@ -300,7 +302,7 @@ function makeCar(slot,opt){
     x:PX[i]-TY[i]*lat,y:PY[i]+TX[i]*lat,h:Math.atan2(TY[i],TX[i]),vx:0,vy:0,
     idx:i,s:i-N,fin:0,onRoad:true,offT:0,wrongT:0,skill:1,off:lat,wheel:0,gas:false,brake:false,
     sx:0,sy:0,sh:0,svx:0,svy:0,st:0,popT:0,
-    boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,px:null,py:0};
+    wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,px:null,py:0};
   for(var k in opt)c[k]=opt[k];
   return c;
 }
@@ -421,6 +423,7 @@ function stepCar(c,inp){
   var fx=Math.cos(c.h),fy=Math.sin(c.h);
   var vf=c.vx*fx+c.vy*fy,vl=-c.vx*fy+c.vy*fx;
   var top=c.cpu?TOP*(0.9+0.1*c.skill):TOP,acc=235,grip=14;
+  if(c.wallT>0)c.wallT-=DT;
   if(c.boostT>0){c.boostT-=DT;top*=1.28;acc*=1.7}                   // boost pad: a few seconds of extra speed
   if(c.draft>0){top+=32*c.draft;acc+=60*c.draft}                    // slipstream: tucked in behind another car
   if(c.slipT>0){c.slipT-=DT;grip=1.6;c.h+=c.spin*3.4*DT;vf*=Math.exp(-0.5*DT)}   // oil: the car slides and turns by itself
@@ -445,12 +448,14 @@ function follow(c){
   if(d>WALL){
     var i=c.idx,nx=(c.x-PX[i])/d,ny=(c.y-PY[i])/d,vn=c.vx*nx+c.vy*ny;
     c.x=PX[i]+nx*WALL;c.y=PY[i]+ny*WALL;
-    if(vn>0){ // hitting the barrier: lose the speed going into it, and more the squarer the hit
-      c.vx-=nx*vn*1.15;c.vy-=ny*vn*1.15;
-      var keep=1-0.5*clamp(vn/TOP,0,1);c.vx*=keep;c.vy*=keep;
-      if(vn>70){if(c===me)thud();puff(c.x,c.y,3)}
-    }
-    var f=Math.exp(-1.5*DT);c.vx*=f;c.vy*=f; // rubbing along it drags
+    // The barrier is slippery: the car only loses the speed it had straight into it, and slides along.
+    if(vn>0){c.vx-=nx*vn;c.vy-=ny*vn;if(vn>70){if(c===me)thud();puff(c.x,c.y,3)}}
+    var f=Math.exp(-0.3*DT);c.vx*=f;c.vy*=f;
+    // Nose against the barrier: it swings round to point along the track by itself, so there is no need to reverse.
+    // The squarer the car faces the barrier, the faster it swings (a head-on hit takes about three quarters of a second).
+    c.wallT=0.15;
+    var into=Math.cos(c.h)*nx+Math.sin(c.h)*ny;
+    if(into>0.05){var td=angDiff(Math.atan2(TY[i],TX[i]),c.h);c.h+=(td<0?-1:1)*Math.min(Math.abs(td),1.5*DT*(0.4+into))}
   }
 }
 // Boost pads, oil and slipstream for one car that this phone is driving.
@@ -497,7 +502,8 @@ function physics(now){
       if(scheme==='wheel'&&!keys.ArrowLeft&&!keys.ArrowRight&&!keys.a&&!keys.d){
         // steering wheel: its angle is the steering angle. The car only turns while it is rolling, and backwards when reversing.
         var wx=c.wheel/WHEEL_MAX,vfw=c.vx*Math.cos(c.h)+c.vy*Math.sin(c.h);
-        c.h+=(wx<0?-1:1)*Math.pow(Math.abs(wx),1.3)*3.7*DT*clamp(Math.abs(vfw)/70,0,1)*(vfw<-4?-1:1);
+        // gentle near the middle, strong only near the stops; against a barrier the car can turn even when stopped
+        c.h+=(wx<0?-1:1)*Math.pow(Math.abs(wx),1.8)*2.6*DT*Math.max(clamp(Math.abs(vfw)/70,0,1),c.wallT>0?0.6:0)*(vfw<-4?-1:1);
         if(!pointerOn('L'))c.wheel*=Math.exp(-9*DT);                 // hands off: it centres itself
       }
       else if(steer){var sp=Math.hypot(c.vx,c.vy);c.h+=steer*3.8*DT*clamp(sp/60+0.5,0,1);c.wheel+=(steer*0.9-c.wheel)*0.2}
@@ -634,16 +640,16 @@ function paintTrack(){ // draw the track once at screen resolution, and a clear 
 }
 
 function drawTrack(g){
-  // The 1970s arcade look: a black screen, and the road is only two rows of square dots, one down each edge.
+  // The 1970s arcade look: a black screen, and the road is only two rows of small, soft white dots, one down each edge.
   var i,k,side;
   g.fillStyle='#000';g.fillRect(0,0,W,H);
   for(side=-1;side<=1;side+=2){
     var off=side*(HALF+3),run=0,n=0,lx=PX[0]-TY[0]*off,ly=PY[0]+TX[0]*off;
     for(i=1;i<=N;i++){
       var j=i%N,x=PX[j]-TY[j]*off,y=PY[j]+TX[j]*off,seg=Math.hypot(x-lx,y-ly);
-      while(seg>0&&run+seg>=13){
-        var f=(13-run)/seg;lx+=(x-lx)*f;ly+=(y-ly)*f;seg=Math.hypot(x-lx,y-ly);run=0;
-        if(distRoad(lx,ly)>=HALF){g.fillStyle=n%2?'#ff4d4d':'#f4f6fb';g.fillRect(Math.round(lx)-2.5,Math.round(ly)-2.5,5,5)}   // skip dots that fold into the road on tight bends
+      while(seg>0&&run+seg>=12){
+        var f=(12-run)/seg;lx+=(x-lx)*f;ly+=(y-ly)*f;seg=Math.hypot(x-lx,y-ly);run=0;
+        if(distRoad(lx,ly)>=HALF){g.fillStyle='#b9c0cf';g.fillRect(Math.round(lx)-1.5,Math.round(ly)-1.5,3,3)}   // skip dots that fold into the road on tight bends
         n++;
       }
       run+=seg;lx=x;ly=y;
@@ -800,12 +806,10 @@ function drawPads(now){
   }
   // wheel
   if(scheme==='wheel'){ctx.strokeStyle='#56628a';ctx.lineWidth=3;for(var q=-1;q<=1;q+=2){var sa=-Math.PI/2+q*WHEEL_MAX;ctx.beginPath();ctx.moveTo(w.x+Math.cos(sa)*(w.r+2),w.y+Math.sin(sa)*(w.r+2));ctx.lineTo(w.x+Math.cos(sa)*(w.r+9),w.y+Math.sin(sa)*(w.r+9));ctx.stroke()}}
-  ctx.save();ctx.translate(w.x,w.y);ctx.rotate(me.wheel);
-  ctx.strokeStyle=on?'#38bdf8':'#3a4a78';ctx.lineWidth=9;ctx.beginPath();ctx.arc(0,0,w.r-5,0,TAU);ctx.stroke();
-  ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-(w.r-5),0);ctx.lineTo(w.r-5,0);ctx.moveTo(0,0);ctx.lineTo(0,w.r-5);ctx.stroke();
-  ctx.fillStyle=on?'#38bdf8':'#3a4a78';ctx.beginPath();ctx.arc(0,0,11,0,TAU);ctx.fill();
-  ctx.fillStyle='#ffd23f';ctx.fillRect(-4,-w.r,8,11);
-  ctx.restore();
+  if(!wheelImg)wheelImg=makeWheel();
+  ctx.save();ctx.translate(w.x,w.y);ctx.rotate(me.wheel);ctx.imageSmoothingEnabled=false;ctx.globalAlpha=on?1:0.8;
+  ctx.drawImage(wheelImg,-w.r,-w.r,w.r*2,w.r*2);
+  ctx.restore();ctx.imageSmoothingEnabled=true;
   // pedals
   pedal(ui.brake,me.brake,'#ff4d4d','BRAKE');
   pedal(ui.gas,me.gas||gasLock,gear>0?'#38bdf8':'#ff9f43',gasLock?'LOCKED':'GAS');
@@ -816,6 +820,17 @@ function drawPads(now){
   text('D',lx,s.y+14,12,gear>0?'#38bdf8':'#56628a');text('R',lx,s.y+s.h-12,12,gear<0?'#ff9f43':'#56628a');
   // pause
   ctx.fillStyle='rgba(138,150,179,.7)';var bx=pauseBtn.x+pauseBtn.w/2,by=pauseBtn.y+16;ctx.fillRect(bx-6,by-6,4,12);ctx.fillRect(bx+2,by-6,4,12);
+}
+// The steering wheel, drawn on a coarse grid like the icon: white rim, three spokes, blue hub, red mark at the top.
+var wheelImg=null;
+function makeWheel(){
+  var n=56,c=document.createElement('canvas'),g,x,y,q,m=n/2;c.width=c.height=n;g=c.getContext('2d');
+  for(y=0;y<n;y++)for(x=0;x<n;x++){
+    q=Math.hypot(x+0.5-m,y+0.5-m);
+    var col=q<=6?'#3f8ff5':(q>=21&&q<=27)?((Math.abs(x+0.5-m)<2&&y<m)?'#e8392b':'#f4f6fb'):(q<21&&((Math.abs(y+0.5-m)<2)||(Math.abs(x+0.5-m)<2&&y>m)))?'#f4f6fb':null;
+    if(col){g.fillStyle=col;g.fillRect(x,y,1,1)}
+  }
+  return c;
 }
 function pointerOn(side){for(var id in pointers)if(pointers[id].side===side)return true;return false}
 function toScreen(x,y){return portrait?[ox+(H-y)*sc,oy+x*sc]:[ox+x*sc,oy+y*sc]}
@@ -976,7 +991,7 @@ function paintMenuColor(){
   paintSw($('menuSw'),myColor(),[],j);
   $('colorNote').textContent=j?'Jeff always drives the blue car.':'Pick your car. Blue is saved for Jeff. In a room, colors are first come, first served.';
 }
-var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it, like a real steering wheel. Hold it turned and the car keeps curving; the further you turn it, the tighter the curve. Let go and it springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
+var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it, like a real steering wheel. Hold it turned and the car keeps curving; small turns are gentle, and the further you turn it, the tighter the curve. Let go and it springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   slide:'Slide: hold your left thumb down and slide it left or right; let go to straighten. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   buttons:'Buttons: the car drives itself forward. Hold the left or right side to turn, both sides to brake, and keep holding to back up.'};
 function paintHow(){$('howto').textContent=HOW[scheme]+(scheme==='buttons'?'':gasMode==='lock'?' Gas: tap it once and it stays down; tap again, or brake, to lift off.':' Gas: hold it down to go.')}

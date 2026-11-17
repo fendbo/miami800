@@ -67,11 +67,23 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
 
 ## Look changed 2026-11-17 (owner sent a photo of the 1975 cabinet's screen as the inspiration)
 - The road is no longer a solid strip. The screen is black and each edge of the road is a row of small square dots,
-  alternating white and red (the owner kept the white and red). No road surface, no centre dashes. Our own track
+  alternating white and red (changed to plain white later the same day, see below). No road surface, no centre dashes. Our own track
   shapes and car drawings stay; only the style is borrowed.
 - Car palette follows that screen: red, blue, lime, green, cyan, violet, lavender, white, plus orange as the ninth
   (nine are needed because blue is Jeff's). Blue is still colour number 1.
 - Skid marks and oil were lightened so they show on black.
+
+## Changed 2026-11-17, third round (owner's verdicts after trying the new wheel and seeing icon options)
+- Wheel much calmer: response is now `|wheel|^1.8 * 2.6 rad/s` (was `^1.3 * 3.7`), so small turns are gentle; he was
+  turning straight into the wall.
+- Barriers are slippery and never need reverse: a car loses only the speed it had straight into the barrier, slides
+  along it, and its nose swings round to point along the track by itself (head-on takes about 0.75 s). Steering also
+  works when stopped against a barrier.
+- Track dots: all white (the owner said red and white spoiled the retro feel), muted (`#b9c0cf`) and thinner (3 units).
+- The in-game steering wheel is the wheel from icon option A: blocky white rim, three spokes, blue hub, red mark on
+  top (`makeWheel`).
+- App icon (owner's pick, option F refined): track of soft white dots, a big white 800 with stepped pixel-rounded
+  corners, and the eight cars drawn as in the game. `tools/make_icon.py`. Shown on the game's menu too.
 
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
