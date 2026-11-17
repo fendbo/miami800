@@ -22,7 +22,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;background:var(--field);color:var(--ink);font-family:var(--body);overflow:hidden;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
-canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #probe{position:fixed;visibility:hidden;pointer-events:none;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,11,22,.8);
@@ -126,7 +126,7 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
           <span>Gas</span>
           <div class="seg" id="segGas"><button data-v="lock">Tap to lock</button><button data-v="hold">Hold down</button></div>
           <span>Sound</span>
-          <div class="seg" id="segSound"><button data-v="on">On</button><button data-v="off">Off</button></div>
+          <div class="seg" id="segSound"><button data-v="on">On</button><button data-v="fx">No engine</button><button data-v="off">Off</button></div>
         </div>
         <p class="small" id="bestNote"></p>
         <p class="small" id="colorNote"></p>
@@ -187,6 +187,8 @@ var W=1000,H=620;                 // the track's own coordinate space
 var TOP=285;                      // top speed on the road
 var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
 var WHEEL_MAX=1.75;               // the wheel turns 100 degrees each way and stops, like a real one
+var TURN_R=36;                    // tightest turning circle at full lock (radius, in track units)
+var GRIP=520;                     // how hard the tyres can corner: at speed the car runs wide instead of spinning
 // Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
 // The palette follows the 1975 cabinet's screen: blue, red, lavender, white, cyan, pale lime, green, violet. Orange is the one extra.
 var COLORS=['#e8392b','#3f8ff5','#d9f09c','#5fd06e','#45d8e6','#7d63f2','#cfb0f0','#f4f6fb','#f0a13c'];
@@ -285,7 +287,7 @@ var mode='menu';                  // menu | race
 var phase='idle';                 // count | go | done
 var online=false;                 // racing a room (true) or practice (false)
 var cars=[],me=null,laps=+(store('laps')||5),raceStart=0,paused=false,pauseAt=0;
-var scheme=store('steer2')||'wheel',soundOn=store('sound')!=='off';
+var scheme=store('steer2')||'wheel',soundMode=store('sound')==='off'?'off':store('sound')==='fx'?'fx':'on',soundOn=soundMode!=='off';   // on = engine and effects, fx = effects only
 var gasMode=store('gas')||'lock',gasLock=false;   // lock: tap the gas once and it stays down until you tap it again or brake
 var msg='',msgUntil=0,finalLapShown=false,lastSend=0,resultsShown=false,doneAt=0;
 var board=[];                     // cars that have finished, in order: they leave the track and line up here
@@ -396,6 +398,9 @@ cv.addEventListener('pointermove',function(e){
     var cx=ui.wheel.x,cy=ui.wheel.y;
     if(Math.hypot(p.x-cx,p.y-cy)>12&&Math.hypot(e.clientX-cx,e.clientY-cy)>12){
       var d=angDiff(Math.atan2(e.clientY-cy,e.clientX-cx),Math.atan2(p.y-cy,p.x-cx));
+      // near the rim the wheel follows the thumb exactly; nearer the hub the same thumb movement turns it less,
+      // so a thumb resting close to the middle cannot whip it from lock to lock
+      var rr0=Math.hypot(e.clientX-cx,e.clientY-cy);d*=rr0/Math.max(rr0,ui.wheel.r*0.75);
       if(me)me.wheel=clamp(me.wheel+d,-WHEEL_MAX,WHEEL_MAX);
     }
   }
@@ -406,6 +411,9 @@ cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 window.addEventListener('keydown',function(e){if(e.target.tagName==='INPUT')return;if(e.key==='r'&&!keys.r&&mode==='race')shiftGear();if(e.key==='h'&&!keys.h&&mode==='race')horn();keys[e.key]=true;if(mode==='race'&&e.key.indexOf('Arrow')===0)e.preventDefault();if(e.key==='Escape'&&mode==='race')paused?closePause():openPause()});
 window.addEventListener('keyup',function(e){keys[e.key]=false});
 document.addEventListener('gesturestart',function(e){e.preventDefault()});
+// iPhone shows its text magnifier when a finger rests on the page; cancelling the touch on the game canvas stops it
+['touchstart','touchmove','touchend'].forEach(function(n){cv.addEventListener(n,function(e){if(e.cancelable)e.preventDefault()},{passive:false})});
+document.addEventListener('selectstart',function(e){if(e.target.tagName!=='INPUT')e.preventDefault()});
 document.addEventListener('contextmenu',function(e){if(e.target===cv)e.preventDefault()});
 
 // ---------------------------------------------------------------- physics
@@ -449,7 +457,7 @@ function follow(c){
     var i=c.idx,nx=(c.x-PX[i])/d,ny=(c.y-PY[i])/d,vn=c.vx*nx+c.vy*ny;
     c.x=PX[i]+nx*WALL;c.y=PY[i]+ny*WALL;
     // The barrier is slippery: the car only loses the speed it had straight into it, and slides along.
-    if(vn>0){c.vx-=nx*vn;c.vy-=ny*vn;if(vn>70){if(c===me)thud();puff(c.x,c.y,3)}}
+    if(vn>0){c.vx-=nx*vn;c.vy-=ny*vn;if(vn>70){if(c===me){thud();crash(vn)}puff(c.x,c.y,3)}}
     var f=Math.exp(-0.3*DT);c.vx*=f;c.vy*=f;
     // Nose against the barrier: it swings round to point along the track by itself, so there is no need to reverse.
     // The squarer the car faces the barrier, the faster it swings (a head-on hit takes about three quarters of a second).
@@ -499,11 +507,16 @@ function physics(now){
       if(ped.gas&&!wasGas)rev(spd);
       if(ped.brake&&!wasBrake&&spd>50)screech(spd);
       wasGas=ped.gas;wasBrake=ped.brake;
+      if(c===me&&spd>130&&Math.abs(-c.vx*Math.sin(c.h)+c.vy*Math.cos(c.h))>42)screech(spd*0.6);
       if(scheme==='wheel'&&!keys.ArrowLeft&&!keys.ArrowRight&&!keys.a&&!keys.d){
         // steering wheel: its angle is the steering angle. The car only turns while it is rolling, and backwards when reversing.
         var wx=c.wheel/WHEEL_MAX,vfw=c.vx*Math.cos(c.h)+c.vy*Math.sin(c.h);
-        // gentle near the middle, strong only near the stops; against a barrier the car can turn even when stopped
-        c.h+=(wx<0?-1:1)*Math.pow(Math.abs(wx),1.8)*2.6*DT*Math.max(clamp(Math.abs(vfw)/70,0,1),c.wallT>0?0.6:0)*(vfw<-4?-1:1);
+        // Like a car: the wheel sets the turning circle, so the car turns in proportion to how fast it is rolling
+        // (it cannot pirouette at low speed), and at high speed the tyres limit it, so it runs wide rather than spinning.
+        var vv=Math.abs(vfw);if(c.wallT>0)vv=Math.max(vv,45);            // against a barrier it can still swing round
+        var wr=vv*Math.pow(Math.abs(wx),1.5)/TURN_R;
+        wr=Math.min(wr,GRIP/Math.max(vv,1),2.8);
+        c.h+=(wx<0?-1:1)*wr*DT*(vfw<-4?-1:1);
         if(!pointerOn('L'))c.wheel*=Math.exp(-9*DT);                 // hands off: it centres itself
       }
       else if(steer){var sp=Math.hypot(c.vx,c.vy);c.h+=steer*3.8*DT*clamp(sp/60+0.5,0,1);c.wheel+=(steer*0.9-c.wheel)*0.2}
@@ -521,7 +534,7 @@ function physics(now){
       else if(b.remote){a.x-=nx*o;a.y-=ny*o;if(vn>0){a.vx-=nx*vn*0.75;a.vy-=ny*vn*0.75}}
       else{a.x-=nx*o/2;a.y-=ny*o/2;b.x+=nx*o/2;b.y+=ny*o/2;
         if(vn>0){a.vx-=nx*vn*0.75;a.vy-=ny*vn*0.75;b.vx+=nx*vn*0.75;b.vy+=ny*vn*0.75}}
-      if(vn>45&&(a===me||b===me))thud();
+      if(vn>45&&(a===me||b===me)){thud();crash(vn)}
     }
   }
   for(i=0;i<cars.length;i++){
@@ -562,8 +575,31 @@ function beep(freq,dur,vol){
     g.gain.setTargetAtTime(0,AC.currentTime+dur*0.7,0.03);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+dur+0.15)}catch(e){}
 }
 var lastRev=0,lastScreech=0,noiseBuf=null,wasGas=false,wasBrake=false;
-function rev(sp){ // a short engine blip when the gas goes down
-  var t=performance.now();if(!AC||!soundOn||t-lastRev<220)return;lastRev=t;
+// The engine: a rough buzzing drone whose pitch climbs with speed, the way the discrete sound boards of 1970s
+// arcade racers did it. One voice, for your own car.
+var eng=null;
+function engine(sp,gas,run){
+  if(!AC)return;
+  if(!eng){
+    try{var o1=AC.createOscillator(),o2=AC.createOscillator(),f=AC.createBiquadFilter(),g=AC.createGain();
+      o1.type='square';o2.type='sawtooth';f.type='lowpass';f.frequency.value=520;g.gain.value=0;
+      o1.connect(f);o2.connect(f);f.connect(g);g.connect(AC.destination);o1.start();o2.start();eng={o1:o1,o2:o2,g:g}}catch(e){return}
+  }
+  var n=AC.currentTime,hz=42+sp*0.36+(gas?10:0);
+  eng.o1.frequency.setTargetAtTime(hz,n,0.05);eng.o2.frequency.setTargetAtTime(hz*1.51,n,0.05);
+  eng.g.gain.setTargetAtTime(run&&soundMode==='on'?0.016+0.02*clamp(sp/TOP,0,1)+(gas?0.006:0):0,n,0.06);
+}
+function crash(v){ // a burst of noise when you hit a barrier or another car
+  if(!AC||!soundOn)return;
+  try{
+    if(!noiseBuf){noiseBuf=AC.createBuffer(1,AC.sampleRate*0.6,AC.sampleRate);var d=noiseBuf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+    var n=AC.currentTime,src=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();
+    src.buffer=noiseBuf;f.type='lowpass';f.frequency.value=900;
+    g.gain.setValueAtTime(0.05+0.14*clamp(v/250,0,1),n);g.gain.exponentialRampToValueAtTime(0.0001,n+0.22);
+    src.connect(f);f.connect(g);g.connect(AC.destination);src.start(n);src.stop(n+0.25)}catch(e){}
+}
+function rev(sp){ // a short engine blip when the gas goes down (only when the engine drone is off)
+  var t=performance.now();if(!AC||!soundOn||soundMode==='on'||t-lastRev<220)return;lastRev=t;
   try{var n=AC.currentTime,o=AC.createOscillator(),f=AC.createBiquadFilter(),g=AC.createGain(),base=70+sp*0.3;
     o.type='sawtooth';o.frequency.setValueAtTime(base,n);o.frequency.exponentialRampToValueAtTime(base*1.9,n+0.3);
     f.type='lowpass';f.frequency.value=750;
@@ -920,6 +956,7 @@ function frame(now){
     if(mode==='race'&&me&&phase==='go'&&!finalLapShown&&laps>1&&me.s>=(laps-1)*N){finalLapShown=true;flash('FINAL LAP',1600);beep(660,.1)}
     if(mode==='race'&&!online&&phase==='done'&&!resultsShown&&now-doneAt>3000){resultsShown=true;showPracticeResults()}
   }
+  engine(me?Math.hypot(me.vx,me.vy):0,me&&me.gas,mode==='race'&&phase==='go'&&!paused&&me&&!me.fin);
   render(now);
 }
 
@@ -1121,7 +1158,7 @@ var paintMenuTog=togs('menuTog',function(k,v){
 var paintLobTog=togs('lobTog',function(k,v){send({t:'opt',k:k,v:v})});
 var paintLobCup=seg('segLobCup',0,function(v){send({t:'cup',n:+v})});
 seg('segGas',gasMode,function(v){gasMode=v;gasLock=false;store('gas',v);paintHow()});
-seg('segSound',soundOn?'on':'off',function(v){soundOn=v==='on';store('sound',v)});
+seg('segSound',soundMode,function(v){soundMode=v;soundOn=v!=='off';store('sound',v)});
 var paintLobLaps=seg('segLobLaps',5,function(v){send({t:'laps',n:+v})});
 var paintLobTrack=seg('segLobTrack',1,function(v){send({t:'track',n:+v})});
 buildSw($('menuSw'),function(c){store('color',c);paintMenuColor()});
@@ -1150,7 +1187,7 @@ $('bCopy').onclick=function(){
 
 // ---------------------------------------------------------------- start up
 window.addEventListener('resize',layout);window.addEventListener('orientationchange',function(){setTimeout(layout,250)});
-document.addEventListener('visibilitychange',function(){if(document.hidden&&mode==='race'&&!online&&!paused&&phase==='go')openPause()});
+document.addEventListener('visibilitychange',function(){if(document.hidden)engine(0,false,false);if(document.hidden&&mode==='race'&&!online&&!paused&&phase==='go')openPause()});
 try{$('name').value=store('name')||''}catch(e){}
 var t0=parseInt(store('track'),10);setTrack(t0>=0?t0:0,optRev);
 paintTrackSeg(track);paintMenuTog({rev:optRev,night:optNight});paintMenuColor();paintBest();

@@ -85,6 +85,19 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
 - App icon (owner's pick, option F refined): track of soft white dots, a big white 800 with stepped pixel-rounded
   corners, and the eight cars drawn as in the game. `tools/make_icon.py`. Shown on the game's menu too.
 
+## Changed 2026-11-17, fourth round (owner: "not loving it", spinning out too much, wants sound)
+- Steering now sets a **turning circle**, as in a car, not a spin rate: turn rate = speed x wheel^1.5 / `TURN_R` (36),
+  capped by tyre grip (`GRIP` 520 / speed) and 2.8 rad/s. So the car cannot pirouette at low speed, and at high speed
+  it runs wide instead of spinning. Thumb movement near the wheel's hub is scaled down so it cannot whip the wheel
+  from lock to lock. Still unproven on his phone: if he still dislikes the wheel, try the Slide scheme as default.
+- iPhone text magnifier on tap-and-hold: touch events on the canvas are cancelled, selection is blocked.
+- Sound. Research: the 1975 cabinet's sounds are barely documented. Sources give an amplified sound system with a
+  channel per player, a horn button and two pedals, and the flyer speaks only of "exciting sound effects"; its
+  predecessor Gran Trak 10 is described with engine noise, tyre squeal and a crash sound. Built on that: an engine
+  drone for your own car (pitch climbs with speed), a noise-burst crash on barrier and car hits, tyre squeal when
+  sliding in a corner as well as under braking, plus the horn. The Sound setting is now On / No engine / Off, because
+  on 2026-11-13 the owner had found an engine drone annoying; on 2026-11-17 he asked for engine sounds back.
+
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
   `test/phone.py` in Chrome at phone size (computer cars complete every track; lights, flags, leader board; a
