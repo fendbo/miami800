@@ -103,6 +103,56 @@ let passed = 0; const ok = (name) => { passed++; console.log('  ok  ' + name); }
   host.ws.close(); await until(() => jeff.room.host !== host.room.you, 'new host');
   ok('leaving frees the colour and hands the room on');
 
+  // ---- a second room: computer cars, a cup, the lap record, the horn
+  const h2 = phone(); await h2.open; h2.send({ t: 'create', name: 'Cy', track: 1, laps: 3, rev: true, night: true });
+  await until(() => h2.room, 'room 2');
+  assert.strictEqual(h2.room.rev, true); assert.strictEqual(h2.room.night, true); assert.strictEqual(h2.room.cpu, true);
+  const g2 = phone(); await g2.open; g2.send({ t: 'join', code: h2.room.code, name: 'Di' }); await until(() => g2.room, 'guest 2');
+  g2.send({ t: 'opt', k: 'night', v: false }); g2.send({ t: 'cup', n: 3 }); await wait(60);
+  assert.strictEqual(h2.room.night, true); assert.strictEqual(h2.room.cup, 0);
+  h2.send({ t: 'opt', k: 'night', v: false }); h2.send({ t: 'cup', n: 3 });
+  await until(() => g2.room.night === false && g2.room.cup === 3, 'options seen');
+  ok('reverse, night and cup are the host\'s to set, and everyone sees them');
+
+  h2.send({ t: 'start' }); await until(() => g2.last('go'), 'go 2');
+  const go = g2.last('go');
+  assert.strictEqual(go.bots.length, 6); assert.strictEqual(go.rev, true); assert.ok(go.seed > 0);
+  const used = new Set(h2.room.players.map((q) => q.color));
+  assert.ok(go.bots.every((b) => b.color !== 1 && !used.has(b.color)) && new Set(go.bots.map((b) => b.color)).size === 6);
+  ok('6 computer cars fill the grid, in free colours, never blue');
+  g2.send({ t: 'b', d: go.bots.map((b) => [b.id, 1, 1, 0, 0, 0, 999, 1]) }); await wait(100);   // only the host drives them
+  h2.send({ t: 's', d: [5, 5, 0, 0, 0, 100] }); g2.send({ t: 's', d: [5, 5, 0, 0, 0, 90] });
+  h2.send({ t: 'b', d: go.bots.map((b, i) => [b.id, 10 + i, 20, 0, 5, 0, 300 - i * 50, 0]) });
+  await until(() => g2.last('snap') && g2.last('snap').p.length === 8, 'bots in snapshots');
+  assert.ok(g2.last('snap').p.filter((d) => d[0] < 0).every((d) => d[1] >= 10 && d[7] === 0));
+  ok('the host\'s phone drives the computer cars and everyone gets their positions');
+  h2.send({ t: 'horn' }); await until(() => g2.last('horn'), 'horn'); assert.strictEqual(g2.last('horn').id, h2.room.you);
+  ok('the horn is heard by the room');
+  await wait(3400);   // a lap cannot be longer than the race has run
+  g2.send({ t: 'lap', ms: 100 }); g2.send({ t: 'lap', ms: 4200 }); h2.send({ t: 'lap', ms: 99999 });
+  h2.send({ t: 'b', d: [[go.bots[0].id, 10, 20, 0, 5, 0, 9999, 1]] }); await wait(50);          // one computer car finishes first
+  g2.send({ t: 'fin' }); await wait(30); h2.send({ t: 'fin' });
+  await until(() => h2.last('end'), 'results 2');
+  const e2 = h2.last('end');
+  assert.deepStrictEqual(e2.results.slice(0, 3).map((r) => r.name), ['Dash', 'Di', 'Cy']);
+  assert.strictEqual(e2.results.length, 8); assert.strictEqual(e2.results[0].bot, true);
+  assert.deepStrictEqual(e2.standings.map((q) => q.name + q.pts), ['Di8', 'Cy6']); assert.strictEqual(e2.final, false); assert.strictEqual(e2.cupDone, 1);
+  ok('results rank computer cars with the players; cup points go to the players by place');
+  await until(() => h2.room.state === 'results' && h2.room.rec, 'record');
+  assert.strictEqual(h2.room.rec.ms, 4200); assert.strictEqual(h2.room.rec.name, 'Di');
+  ok('the best believable lap is kept as the track record');
+  for (let i = 0; i < 2; i++) {
+    h2.send({ t: 'lobby' }); await until(() => h2.room.state === 'lobby', 'lobby'); h2.msgs.length = 0;
+    h2.send({ t: 'start' }); await until(() => h2.last('go'), 'go again'); await wait(500);
+    h2.send({ t: 'fin' }); await wait(20); g2.send({ t: 'fin' }); await until(() => h2.last('end'), 'end again');
+  }
+  const e3 = h2.last('end');
+  assert.strictEqual(e3.final, true); assert.deepStrictEqual(e3.standings.map((q) => q.name + q.pts), ['Cy26', 'Di24']);
+  h2.send({ t: 'lobby' }); await until(() => h2.room.state === 'lobby', 'lobby after cup');
+  assert.ok(h2.room.players.every((q) => q.pts === 0) && h2.room.cupDone === 0);
+  ok('after the third race the cup is decided, then the points start again');
+  [h2, g2].forEach((p) => p.ws.terminate());
+
   console.log(passed + ' checks passed');
   everyone.concat(ninth).forEach((p) => { try { p.ws.terminate(); } catch (e) {} });
   server.close(); process.exit(0);

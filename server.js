@@ -1,6 +1,7 @@
 // Miami 800 server: serves the game page and runs race rooms for up to 8 phones.
 // Each phone drives its own car and reports where it is; the server relays positions,
-// runs the lobby (track, laps, car colours) and the start, and decides the finishing order.
+// runs the lobby (track, laps, car colours, options) and the start, and decides the finishing order.
+// Computer cars in a room are driven by the host's phone and relayed like any other car.
 'use strict';
 const http = require('http');
 const fs = require('fs');
@@ -12,7 +13,11 @@ const PUB = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon' };
 const MAX_PLAYERS = 8;          // the host plus 7 invited
-const TRACKS = 3;               // 0 Training, 1 Classic, 2 Twister (shapes live in the page)
+const TRACKS = 3;               // 0 Miami, 1 New York, 2 Utah (shapes live in the page)
+const POINTS = [10, 8, 6, 5, 4, 3, 2, 1];   // cup points by finishing place
+const BOT_NAMES = ['Dash', 'Vera', 'Buck', 'Nell', 'Otto', 'Roxy', 'Gus'];
+const BOT_SKILL = [0.93, 0.9, 0.87, 0.84, 0.81, 0.78, 0.75];
+const records = new Map();      // best lap per track and direction, kept until the server restarts
 const COLORS = 9;               // car colours, in the page's order
 const BLUE = 1;                 // kept for Jeff: nobody else can take it
 const COUNTDOWN_MS = +process.env.M800_COUNTDOWN || 4200;   // time from START to the green light
@@ -50,10 +55,13 @@ const isJeff = (n) => String(n).trim().toLowerCase() === 'jeff';
 const send = (p, o) => { if (p.ws.readyState === 1) p.ws.send(JSON.stringify(o)); };
 const all = (room, o) => { const s = JSON.stringify(o); for (const p of room.players.values()) if (p.ws.readyState === 1) p.ws.send(s); };
 
+const recKey = (room) => room.track + (room.rev ? 'r' : '');
 function roomInfo(room) {
   for (const p of room.players.values()) {
     send(p, { t: 'room', code: room.code, you: p.id, host: room.host, state: room.state, laps: room.laps, track: room.track,
-      players: [...room.players.values()].map((q) => ({ id: q.id, name: q.name, slot: q.slot, color: q.color, racing: q.racing })) });
+      rev: room.rev, night: room.night, cpu: room.cpu, cup: room.cup, cupDone: room.cupDone,
+      botsLive: room.state === 'race' && room.bots.length > 0, rec: records.get(recKey(room)) || null,
+      players: [...room.players.values()].map((q) => ({ id: q.id, name: q.name, slot: q.slot, color: q.color, racing: q.racing, pts: q.pts })) });
   }
 }
 // Colours are first come, first served. Jeff is always blue, and blue is never handed to anyone else.
@@ -72,7 +80,7 @@ function pickColor(room, p, want) {
 function join(room, p, want) {
   const used = new Set([...room.players.values()].map((q) => q.slot));
   let slot = 0; while (used.has(slot)) slot++;
-  p.slot = slot; p.room = room; p.racing = false; p.fin = 0; p.d = null;
+  p.slot = slot; p.room = room; p.racing = false; p.fin = 0; p.d = null; p.pts = 0; p.hornAt = 0;
   p.color = pickColor(room, p, want);
   room.players.set(p.id, p);
   if (!room.host) room.host = p.id;
@@ -82,7 +90,10 @@ function leave(p) {
   const room = p.room; if (!room) return;
   p.room = null; room.players.delete(p.id);
   if (!room.players.size) { stopRace(room); rooms.delete(room.code); return; }
-  if (room.host === p.id) room.host = room.players.keys().next().value;
+  if (room.host === p.id) {
+    room.host = room.players.keys().next().value;
+    if (room.state === 'race') room.bots = [];        // the computer cars were driven by the phone that left
+  }
   roomInfo(room);
   if (room.state === 'race') checkEnd(room);
 }
@@ -90,11 +101,25 @@ function stopRace(room) { clearInterval(room.snap); clearTimeout(room.endTimer);
 function start(room) {
   room.state = 'race'; room.startAt = Date.now() + COUNTDOWN_MS;
   for (const p of room.players.values()) { p.racing = true; p.fin = 0; p.d = null; }
+  // computer cars fill the empty places on the grid, in colours nobody has taken (never blue)
+  room.bots = [];
+  if (room.cpu) {
+    const slots = new Set([...room.players.values()].map((q) => q.slot));
+    const cols = new Set([...room.players.values()].map((q) => q.color)); cols.add(BLUE);
+    for (let slot = 0, k = 0; slot < MAX_PLAYERS && room.players.size + k < MAX_PLAYERS; slot++) {
+      if (slots.has(slot)) continue;
+      let c = 0; while (cols.has(c)) c++; cols.add(c);
+      room.bots.push({ id: -1 - k, slot, color: c, name: BOT_NAMES[k], skill: BOT_SKILL[k], d: null, fin: 0 }); k++;
+    }
+  }
+  room.seed = Math.floor(Math.random() * 1e9);
   roomInfo(room);
-  all(room, { t: 'go', laps: room.laps, track: room.track, in: COUNTDOWN_MS });
+  all(room, { t: 'go', laps: room.laps, track: room.track, rev: room.rev, night: room.night, seed: room.seed, in: COUNTDOWN_MS,
+    bots: room.bots.map((b) => ({ id: b.id, slot: b.slot, color: b.color, name: b.name, skill: b.skill })) });
   room.snap = setInterval(() => {
     const list = [];
     for (const p of room.players.values()) if (p.racing && p.d) list.push([p.id, ...p.d, p.fin]);
+    for (const b of room.bots) if (b.d) list.push([b.id, ...b.d, b.fin]);
     all(room, { t: 'snap', p: list });
   }, SNAP_MS);
 }
@@ -105,9 +130,18 @@ function checkEnd(room) {
 function endRace(room) {
   if (room.state !== 'race') return;
   stopRace(room); room.state = 'results';
-  const racers = [...room.players.values()].filter((p) => p.racing);
+  const racers = [...room.players.values()].filter((p) => p.racing).concat(room.bots);
   racers.sort((a, b) => (a.fin && b.fin) ? a.fin - b.fin : a.fin ? -1 : b.fin ? 1 : ((b.d ? b.d[5] : -1e9) - (a.d ? a.d[5] : -1e9)));
-  all(room, { t: 'end', results: racers.map((p) => ({ id: p.id, name: p.name, slot: p.slot, color: p.color, time: p.fin || null })) });
+  // cup: points by place (computer cars hold their places but score nothing)
+  let final = false;
+  if (room.cup) {
+    racers.forEach((p, i) => { p.gain = p.id > 0 ? (POINTS[i] || 0) : 0; if (p.id > 0) p.pts += p.gain; });
+    room.cupDone++; final = room.cupDone >= room.cup;
+  }
+  all(room, { t: 'end', cup: room.cup, cupDone: room.cupDone, final,
+    results: racers.map((p) => ({ id: p.id, name: p.name, slot: p.slot, color: p.color, time: p.fin || null, bot: p.id < 0, gain: room.cup ? p.gain : 0 })),
+    standings: room.cup ? [...room.players.values()].sort((a, b) => b.pts - a.pts).map((p) => ({ id: p.id, name: p.name, color: p.color, pts: p.pts })) : [] });
+  room.bots = [];
   roomInfo(room);
 }
 
@@ -123,7 +157,8 @@ wss.on('connection', (ws) => {
       case 'create': {
         if (room) return;
         p.name = cleanName(m.name);
-        const r = { code: newCode(), players: new Map(), host: null, state: 'lobby',
+        const r = { code: newCode(), players: new Map(), host: null, state: 'lobby', bots: [],
+          rev: m.rev === true, night: m.night === true, cpu: true, cup: 0, cupDone: 0,
           laps: [3, 5, 8].includes(m.laps) ? m.laps : 5,
           track: Number.isInteger(m.track) && m.track >= 0 && m.track < TRACKS ? m.track : 1 };
         rooms.set(r.code, r); join(r, p, m.color); break;
@@ -140,6 +175,35 @@ wss.on('connection', (ws) => {
         break;
       case 'track':
         if (room && room.host === p.id && room.state === 'lobby' && Number.isInteger(m.n) && m.n >= 0 && m.n < TRACKS) { room.track = m.n; roomInfo(room); }
+        break;
+      case 'opt':     // host switches: reverse direction, night, computer cars
+        if (room && room.host === p.id && room.state === 'lobby' && ['rev', 'night', 'cpu'].includes(m.k)) { room[m.k] = m.v === true; roomInfo(room); }
+        break;
+      case 'cup':     // host: a cup of 3 or 5 races with points, or 0 for single races. Changing it starts the count again.
+        if (room && room.host === p.id && room.state === 'lobby' && [0, 3, 5].includes(m.n)) {
+          room.cup = m.n; room.cupDone = 0; for (const q of room.players.values()) q.pts = 0; roomInfo(room);
+        }
+        break;
+      case 'b':       // the host's phone reports the computer cars it is driving
+        if (room && room.host === p.id && room.state === 'race' && Array.isArray(m.d)) {
+          for (const e of m.d) {
+            if (!Array.isArray(e) || e.length !== 8 || !e.every(Number.isFinite)) continue;
+            const b = room.bots.find((q) => q.id === e[0]); if (!b) continue;
+            b.d = e.slice(1, 7);
+            if (e[7] > 0 && !b.fin && Date.now() - room.startAt >= MIN_RACE_MS) b.fin = Date.now() - room.startAt;
+          }
+        }
+        break;
+      case 'lap': {   // a finished lap: keep the best one per track as the record
+        const ms = Number(m.ms);
+        if (room && room.state === 'race' && p.racing && Number.isFinite(ms) && ms >= 4000 && ms <= Date.now() - room.startAt + 1000) {
+          const k = recKey(room), old = records.get(k);
+          if (!old || ms < old.ms) records.set(k, { ms: Math.round(ms), name: p.name });
+        }
+        break;
+      }
+      case 'horn':
+        if (room && Date.now() - p.hornAt > 600) { p.hornAt = Date.now(); all(room, { t: 'horn', id: p.id }); }
         break;
       case 'color':   // pick a car colour while waiting in the room; taken colours and Jeff's blue are refused
         if (room && !(room.state === 'race' && p.racing) && !(p.color === BLUE && isJeff(p.name)) && colorFree(room, p, m.n)) p.color = m.n;
@@ -162,7 +226,9 @@ wss.on('connection', (ws) => {
         break;
       case 'lobby':
         if (room && room.host === p.id && room.state === 'results') {
-          room.state = 'lobby'; for (const q of room.players.values()) q.racing = false; roomInfo(room);
+          room.state = 'lobby'; for (const q of room.players.values()) q.racing = false;
+          if (room.cup && room.cupDone >= room.cup) { room.cupDone = 0; for (const q of room.players.values()) q.pts = 0; }   // cup over: a new one begins
+          roomInfo(room);
         }
         break;
       case 'leave': leave(p); break;
