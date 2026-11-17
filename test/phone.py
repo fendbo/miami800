@@ -69,7 +69,7 @@ with sync_playwright() as pw:
     for p in (a, b): p.wait_for_function('__m8.phase === "go"', timeout=15000)
     a.wait_for_timeout(2500)
     check(a.evaluate('__m8.cars.length') == 8 and b.evaluate('__m8.cars.length') == 8, 'race: 2 players and 6 computer cars on both phones')
-    check(b.evaluate('__m8.cars.find(c => c.id === __m8.net.host).color') == '#38bdf8', 'race: the guest sees Jeff\'s car in blue')
+    check(b.evaluate('__m8.cars.find(c => c.id === __m8.net.host).color') == '#3f8ff5', 'race: the guest sees Jeff\'s car in blue')
     moved = b.evaluate('__m8.cars.filter(c => c.id < 0 && c.s > 0).length')
     check(moved >= 5, 'race: the guest sees the host-driven computer cars moving (%d of 6 past the line)' % moved)
     a.evaluate('__m8.horn()'); b.wait_for_function('performance.now() - __m8.cars.find(c => c.id === __m8.net.host).hornT < 1000', timeout=3000)

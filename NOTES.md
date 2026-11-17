@@ -52,7 +52,7 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
 - Skid marks stay for the whole race; dust on barrier hits.
 
 ## Changed 2026-11-17 after the owner played it on an iPhone
-- **Scenery removed.** The owner prefers the original retro look: plain dark field, dark road, red and white kerb.
+- **Scenery removed.** The owner prefers the original retro look (see the next section for the dotted track).
   The Miami / New York / Utah backgrounds are gone and the tracks are Training, Classic and Twister again.
   (The scenery code is in git history, commit 3fe4715, if it is ever wanted back.) Do not add backgrounds again unasked.
 - Cars drawn bigger (`CAR` 1.55, was 1.2), with the bump distance, barrier gap and start grid spacing scaled to match.
@@ -64,6 +64,14 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
 - Gas: new setting, "Tap to lock" (default) or "Hold down". Locked: one tap and the gas stays down; a second tap,
   the brake, or the shifter lifts it. The gas pedal is also wider. The owner was unsure whether locking is too
   unrealistic, so Hold stays available.
+
+## Look changed 2026-11-17 (owner sent a photo of the 1975 cabinet's screen as the inspiration)
+- The road is no longer a solid strip. The screen is black and each edge of the road is a row of small square dots,
+  alternating white and red (the owner kept the white and red). No road surface, no centre dashes. Our own track
+  shapes and car drawings stay; only the style is borrowed.
+- Car palette follows that screen: red, blue, lime, green, cyan, violet, lavender, white, plus orange as the ninth
+  (nine are needed because blue is Jeff's). Blue is still colour number 1.
+- Skid marks and oil were lightened so they show on black.
 
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);

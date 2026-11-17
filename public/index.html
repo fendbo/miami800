@@ -13,7 +13,7 @@
 <style>
 :root{
   /* layout: the whole track in the middle, one thumb pad on each side; a single dark arcade world */
-  --field:#070b16; --pad:#0b1122; --line:#1e2a48; --road:#18223f;
+  --field:#000; --pad:#070a12; --line:#1e2a48; --road:#18223f;
   --ink:#eef2fb; --dim:#8a96b3; --accent:#38bdf8; --hot:#ffd23f; --stop:#ff4d4d;
   --display:'Press Start 2P',ui-monospace,Menlo,Consolas,monospace;
   --body:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
@@ -186,8 +186,9 @@ var TOP=285;                      // top speed on the road
 var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
 var WHEEL_MAX=1.75;               // the wheel turns 100 degrees each way and stops, like a real one
 // Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
-var COLORS=['#ff4d4d','#38bdf8','#ffd23f','#4ade80','#ff9f43','#b98cff','#ff7ac8','#eef2fb','#b5764a'];
-var COLOR_NAMES=['Red','Blue','Yellow','Green','Orange','Purple','Pink','White','Bronze'];
+// The palette follows the 1975 cabinet's screen: blue, red, lavender, white, cyan, pale lime, green, violet. Orange is the one extra.
+var COLORS=['#e8392b','#3f8ff5','#d9f09c','#5fd06e','#45d8e6','#7d63f2','#cfb0f0','#f4f6fb','#f0a13c'];
+var COLOR_NAMES=['Red','Blue','Lime','Green','Cyan','Violet','Lavender','White','Orange'];
 var BLUE=1;
 var CPU_NAMES=['Dash','Vera','Buck','Nell','Otto','Roxy','Gus','Ida'];
 var TAU=Math.PI*2;
@@ -633,14 +634,21 @@ function paintTrack(){ // draw the track once at screen resolution, and a clear 
 }
 
 function drawTrack(g){
-  var i,k;
-  g.lineJoin='round';
-  function path(){g.beginPath();g.moveTo(PX[0],PY[0]);for(var q=1;q<N;q++)g.lineTo(PX[q],PY[q]);g.closePath()}
-  g.fillStyle='#070b16';g.fillRect(0,0,W,H);   // plain dark field: the retro arcade look
-  // barrier: a red and white kerb right round both edges
-  path();g.strokeStyle='#eef2fb';g.lineWidth=HALF*2+9;g.stroke();
-  g.setLineDash([9,9]);path();g.strokeStyle='#ff4d4d';g.stroke();g.setLineDash([]);
-  path();g.strokeStyle='#18223f';g.lineWidth=HALF*2;g.stroke();
+  // The 1970s arcade look: a black screen, and the road is only two rows of square dots, one down each edge.
+  var i,k,side;
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  for(side=-1;side<=1;side+=2){
+    var off=side*(HALF+3),run=0,n=0,lx=PX[0]-TY[0]*off,ly=PY[0]+TX[0]*off;
+    for(i=1;i<=N;i++){
+      var j=i%N,x=PX[j]-TY[j]*off,y=PY[j]+TX[j]*off,seg=Math.hypot(x-lx,y-ly);
+      while(seg>0&&run+seg>=13){
+        var f=(13-run)/seg;lx+=(x-lx)*f;ly+=(y-ly)*f;seg=Math.hypot(x-lx,y-ly);run=0;
+        if(distRoad(lx,ly)>=HALF){g.fillStyle=n%2?'#ff4d4d':'#f4f6fb';g.fillRect(Math.round(lx)-2.5,Math.round(ly)-2.5,5,5)}   // skip dots that fold into the road on tight bends
+        n++;
+      }
+      run+=seg;lx=x;ly=y;
+    }
+  }
   // boost pads: orange and yellow chevrons on one side of the road
   for(k=0;k<PADS.length;k++)for(i=0;i<6;i++){
     var pi=wrap(PADS[k].i+i),lat=PADS[k].side*WALL*0.5,hw=WALL*0.5;
@@ -648,12 +656,10 @@ function drawTrack(g){
     g.fillStyle=i%2?'#ff9f43':'#ffd23f';g.beginPath();g.moveTo(-4,-hw);g.lineTo(0,-hw);g.lineTo(5,0);g.lineTo(0,hw);g.lineTo(-4,hw);g.lineTo(1,0);g.closePath();g.fill();
     g.restore();
   }
-  g.fillStyle='rgba(138,150,179,.22)';
-  for(i=0;i<N;i+=6){g.save();g.translate(PX[i],PY[i]);g.rotate(Math.atan2(TY[i],TX[i]));g.fillRect(-5,-1,10,2);g.restore()}
-  // start and finish line
+  // start and finish line: a row of white squares across the road
   g.save();g.translate(PX[0],PY[0]);g.rotate(Math.atan2(TY[0],TX[0]));
   var sq=(HALF*2)/10;
-  for(i=0;i<10;i++)for(var j=0;j<2;j++){g.fillStyle=((i+j)%2)?'#eef2fb':'#070b16';g.fillRect(j*sq-sq,-HALF+i*sq,sq,sq)}
+  for(i=0;i<10;i++)for(var c2=0;c2<2;c2++)if((i+c2)%2){g.fillStyle='#f4f6fb';g.fillRect(c2*sq-sq,-HALF+i*sq,sq,sq)}
   g.restore();
 }
 function carShape(color,mine){ // drawn pointing right, about 24 long, around 0,0
@@ -681,7 +687,7 @@ function layMarks(){
     var c=cars[i];if(c.fin){c.px=null;continue}
     var fx=Math.cos(c.h),fy=Math.sin(c.h),sp=Math.hypot(c.vx,c.vy),vl=-c.vx*fy+c.vy*fx;
     if(c.px!==null&&Math.hypot(c.x-c.px,c.y-c.py)<30&&sp>50&&((c.brake&&sp>90)||Math.abs(vl)>52||c.slipT>0)){
-      skidG.strokeStyle='rgba(6,8,14,.3)';skidG.lineWidth=2.4;skidG.beginPath();
+      skidG.strokeStyle='rgba(120,130,155,.28)';skidG.lineWidth=2.4;skidG.beginPath();
       for(var s2=-1;s2<=1;s2+=2){skidG.moveTo(c.px-fx*10-fy*8*s2,c.py-fy*10+fx*8*s2);skidG.lineTo(c.x-fx*10-fy*8*s2,c.y-fy*10+fx*8*s2)}
       skidG.stroke();
       if(Math.random()<0.25)puff(c.x-fx*8,c.y-fy*8,1);
@@ -694,7 +700,7 @@ function drawOil(now){
   for(var k=0;k<oil.length;k++){
     var o=oil[k],age=t-o.t0;
     ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.a);ctx.globalAlpha=age<1?0.35+0.25*Math.sin(now/60):1;   // blinks for a second before it bites
-    ctx.fillStyle='#07090f';ctx.beginPath();ctx.ellipse(0,0,14,10,0,0,TAU);ctx.fill();ctx.beginPath();ctx.ellipse(9,6,6,4,0,0,TAU);ctx.fill();
+    ctx.fillStyle='#2a2f3d';ctx.beginPath();ctx.ellipse(0,0,14,10,0,0,TAU);ctx.fill();ctx.beginPath();ctx.ellipse(9,6,6,4,0,0,TAU);ctx.fill();
     ctx.strokeStyle='rgba(160,130,255,.55)';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(-2,-2,8,5,0,3.4,5.6);ctx.stroke();
     ctx.restore();
   }
@@ -815,7 +821,7 @@ function pointerOn(side){for(var id in pointers)if(pointers[id].side===side)retu
 function toScreen(x,y){return portrait?[ox+(H-y)*sc,oy+x*sc]:[ox+x*sc,oy+y*sc]}
 function render(now){
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.fillStyle='#070b16';ctx.fillRect(0,0,vw,vh);
+  ctx.fillStyle='#000';ctx.fillRect(0,0,vw,vh);
   ctx.save();
   if(portrait){ctx.translate(ox+H*sc,oy);ctx.rotate(Math.PI/2)}else ctx.translate(ox,oy);
   ctx.scale(sc,sc);
