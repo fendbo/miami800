@@ -56,7 +56,11 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   The Miami / New York / Utah backgrounds are gone and the tracks are Training, Classic and Twister again.
   (The scenery code is in git history, commit 3fe4715, if it is ever wanted back.) Do not add backgrounds again unasked.
 - Cars drawn bigger (`CAR` 1.55, was 1.2), with the bump distance, barrier gap and start grid spacing scaled to match.
-- Wheel calmed: the car turns 0.55 of the wheel's angle (`WHEEL`), was 1:1 and felt twitchy.
+- Wheel, second change the same day: it is now a real steering wheel. The owner said the old one (car heading
+  follows the wheel's angle, any number of turns) is not how a car works: you had to keep winding it through every
+  curve. Now the wheel's angle is the steering angle: it stops at 100 degrees each way (`WHEEL_MAX`), holding it
+  turned keeps the car curving, further is tighter, and it springs back to straight when the thumb lifts. The car
+  only turns while it is rolling, and steers the other way in reverse. Do not go back to the 1:1 spinner.
 - Gas: new setting, "Tap to lock" (default) or "Hold down". Locked: one tap and the gas stays down; a second tap,
   the brake, or the shifter lifts it. The gas pedal is also wider. The owner was unsure whether locking is too
   unrealistic, so Hold stays available.
