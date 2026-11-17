@@ -20,8 +20,8 @@ with sync_playwright() as pw:
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto(base + '/'); pg.wait_for_function('window.__m8 && document.getElementById("onlineBox").hidden === false')
     pg.screenshot(path=out + '/menu-landscape.png')
-    for k, name in enumerate(['miami', 'newyork', 'utah']):
-        pg.evaluate('k => { __m8.setTrack(k, k === 1); __m8.night = k === 2; __m8.laps = 1; __m8.autopilot = true; __m8.startPractice(); }', k)   # New York reversed, Utah at night
+    for k, name in enumerate(['training', 'classic', 'twister']):
+        pg.evaluate('k => { __m8.setTrack(k, k === 1); __m8.night = k === 2; __m8.laps = 1; __m8.autopilot = true; __m8.startPractice(); }', k)   # Classic reversed, Twister at night
         pg.wait_for_timeout(1300); pg.screenshot(path=out + '/%s-1-red.png' % name)
         pg.wait_for_timeout(1500); pg.screenshot(path=out + '/%s-2-yellow.png' % name)
         pg.wait_for_function('__m8.phase === "go"'); pg.wait_for_timeout(500); pg.screenshot(path=out + '/%s-3-green-flag.png' % name)

@@ -22,8 +22,8 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   a player whose name is "Jeff" (any capitals) is always blue and cannot change; nobody else can take blue, and
   computer cars never use it. Nine colours exist so that eight non-Jeff players still get one each. The rule goes by
   the typed name only: anyone who types Jeff gets blue (the first one in a room).
-- Tracks, in rising difficulty (host picks in the room; practice picks on the menu): Miami (wide plain oval),
-  New York (the original track), Utah (narrower road, five hairpins, kinked sides). Each track sets its own road width.
+- Tracks, in rising difficulty (host picks in the room; practice picks on the menu): Training (wide plain oval),
+  Classic (the original track), Twister (narrower road, five hairpins, kinked sides). Each track sets its own road width.
 - Start: three lights, red then yellow then green, a beep with each, and a green flag waves on go.
 - Finish: a finished car leaves the road and its icon pops onto the leader board in the infield, 1st place first.
   Your own finish shows a waving chequered flag.
@@ -32,16 +32,14 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
 - Lap counting follows the car along the road, so short cuts earn nothing.
 
 ## Added 2026-11-16 (second round, all at the owner's request)
-- Tracks are places now, each with its own scenery drawn in code: Miami (the easy oval: ocean, beach, palms, pool,
-  pastel hotels), New York (medium, the original track: city blocks, cabs, a park), Utah (hard: red desert, mesas,
-  snow peaks, pines). To add a place, add an entry to `TRACKS` and a branch in `drawScenery`.
+- Scenery backgrounds (Miami, New York, Utah) were added here and removed the next day; see below.
 - Extras: Reverse (same track the other way) and Night (dark except headlights, boost pads and the start line).
   Practice sets them on the menu; in a room the host does.
 - Slipstream: sit close behind another car for extra speed (HUD says DRAFT).
 - Boost pads: two per track on the straightest stretches, one each side of the road, 2.6 s of extra speed. The owner's
   idea list said "pit-lane boost"; pads were built instead of a side lane, because a second lane would need its own
   lap-counting path.
-- Oil: two patches (three in Utah) move every 10 seconds; each blinks for a second before it bites. Every phone works
+- Oil: two patches (three on Twister) move every 10 seconds; each blinks for a second before it bites. Every phone works
   out the same spots from the seed the server sends with the start.
 - Lap times: best lap on the HUD; best per track kept on the phone; the server keeps a record lap per track and
   direction **in memory only** (gone on every deploy or restart), shown in the room.
@@ -52,6 +50,16 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   the server relays them; if the host leaves mid-race they vanish. A race still ends when all players finish.
 - Horn button (also key H): everyone in the room hears it.
 - Skid marks stay for the whole race; dust on barrier hits.
+
+## Changed 2026-11-17 after the owner played it on an iPhone
+- **Scenery removed.** The owner prefers the original retro look: plain dark field, dark road, red and white kerb.
+  The Miami / New York / Utah backgrounds are gone and the tracks are Training, Classic and Twister again.
+  (The scenery code is in git history, commit 3fe4715, if it is ever wanted back.) Do not add backgrounds again unasked.
+- Cars drawn bigger (`CAR` 1.55, was 1.2), with the bump distance, barrier gap and start grid spacing scaled to match.
+- Wheel calmed: the car turns 0.55 of the wheel's angle (`WHEEL`), was 1:1 and felt twitchy.
+- Gas: new setting, "Tap to lock" (default) or "Hold down". Locked: one tap and the gas stays down; a second tap,
+  the brake, or the shifter lifts it. The gas pedal is also wider. The owner was unsure whether locking is too
+  unrealistic, so Hold stays available.
 
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);

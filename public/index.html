@@ -93,7 +93,7 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
   <div class="panel">
     <h1>MIAMI <b>800</b></h1>
     <div class="stripe" id="stripe"></div>
-    <p class="tag">Up to eight cars. Race in Miami, New York and Utah.</p>
+    <p class="tag">Up to eight cars, three tracks, the whole race on one screen.</p>
     <p class="note" id="menuMsg" hidden></p>
     <div class="cols">
       <div class="col">
@@ -112,7 +112,7 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
       <div class="col">
         <div class="set">
           <span>Track</span>
-          <div class="seg" id="segTrack"><button data-v="0">Miami</button><button data-v="1">New York</button><button data-v="2">Utah</button></div>
+          <div class="seg" id="segTrack"><button data-v="0">Training</button><button data-v="1">Classic</button><button data-v="2">Twister</button></div>
           <span>Extras</span>
           <div class="seg" id="menuTog"><button data-k="rev">Reverse</button><button data-k="night">Night</button></div>
           <span>Laps</span>
@@ -121,6 +121,8 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
           <div class="sws" id="menuSw"></div>
           <span>Steering</span>
           <div class="seg" id="segSteer"><button data-v="wheel">Wheel</button><button data-v="slide">Slide</button><button data-v="buttons">Buttons</button></div>
+          <span>Gas</span>
+          <div class="seg" id="segGas"><button data-v="lock">Tap to lock</button><button data-v="hold">Hold down</button></div>
           <span>Sound</span>
           <div class="seg" id="segSound"><button data-v="on">On</button><button data-v="off">Off</button></div>
         </div>
@@ -144,7 +146,7 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
     <div class="set"><span>Your car</span><div class="sws" id="lobSw"></div></div>
     <div class="set" id="lobHostRow">
       <span>Track</span>
-      <div class="seg" id="segLobTrack"><button data-v="0">Miami</button><button data-v="1">New York</button><button data-v="2">Utah</button></div>
+      <div class="seg" id="segLobTrack"><button data-v="0">Training</button><button data-v="1">Classic</button><button data-v="2">Twister</button></div>
       <span>Laps</span>
       <div class="seg" id="segLobLaps"><button data-v="3">3</button><button data-v="5">5</button><button data-v="8">8</button></div>
       <span>Extras</span>
@@ -181,6 +183,8 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
 // ---------------------------------------------------------------- constants
 var W=1000,H=620;                 // the track's own coordinate space
 var TOP=285;                      // top speed on the road
+var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
+var WHEEL=0.55;                   // how far the car turns for each turn of the on-screen wheel (1 was too twitchy)
 // Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
 var COLORS=['#ff4d4d','#38bdf8','#ffd23f','#4ade80','#ff9f43','#b98cff','#ff7ac8','#eef2fb','#b5764a'];
 var COLOR_NAMES=['Red','Blue','Yellow','Green','Orange','Purple','Pink','White','Bronze'];
@@ -197,14 +201,14 @@ function isJeff(n){return String(n||'').trim().toLowerCase()==='jeff'}
 
 // ---------------------------------------------------------------- tracks
 // Each track: control points of the centre line, driven clockwise; half the road width; where the start line is;
-// the top-left corner of an empty patch of infield (288 x 40) where finishers line up; and the scenery it is set in.
+// and the top-left corner of an empty patch of infield (288 x 40) where finishers line up.
 var TRACKS=[
-  {name:'Miami',level:'easy',scene:'miami',road:'#2b3347',half:42,start:[500,110],board:[356,405],
+  {name:'Training',level:'easy',half:42,start:[500,110],board:[356,405],
    pts:[[300,110],[500,110],[700,110],[841,169],[900,310],[841,451],[700,510],[500,510],[300,510],[159,451],[100,310],[159,169]]},
-  {name:'New York',level:'medium',scene:'nyc',road:'#1b2030',half:34,start:[455,76],board:[304,140],
+  {name:'Classic',level:'medium',half:34,start:[455,76],board:[304,140],
    pts:[[150,160],[235,82],[500,74],[790,80],[892,150],[896,268],[790,330],[650,272],[525,252],[440,318],
         [500,418],[690,432],[850,452],[912,520],[830,574],[420,566],[185,562],[100,478],[126,382],[252,338],[292,252],[180,232]]},
-  {name:'Utah',level:'hard',scene:'utah',road:'#2c2a33',half:30,start:[430,56],board:[236,120],
+  {name:'Twister',level:'hard',half:30,start:[430,56],board:[236,120],
    pts:[[88,300],[92,170],[140,85],[230,58],[430,56],[640,58],[820,60],[905,95],[942,180],[905,300],[940,420],[925,500],[880,552],[820,560],[775,525],[760,460],
         [760,330],[760,240],[740,180],[690,152],[640,180],[620,240],[620,410],[600,470],[550,495],[500,470],[480,410],[480,300],[460,245],[410,222],[360,245],[340,300],
         [340,400],[322,480],[280,538],[210,562],[130,540],[95,470],[125,385]]}
@@ -221,7 +225,7 @@ function setTrack(k,rev){
   if(k===track&&rev===trackRev)return;
   track=k;trackRev=rev;
   var T=TRACKS[k],CTRL=rev?T.pts.slice().reverse():T.pts,raw=[],n=CTRL.length,i,j;
-  HALF=T.half;WALL=HALF-8;PX=[];PY=[];TX=[];TY=[];TURN=[];
+  HALF=T.half;WALL=HALF-10;PX=[];PY=[];TX=[];TY=[];TURN=[];
   for(i=0;i<n;i++){
     var p0=CTRL[(i+n-1)%n],p1=CTRL[i],p2=CTRL[(i+1)%n],p3=CTRL[(i+2)%n];
     for(j=0;j<24;j++){
@@ -279,6 +283,7 @@ var phase='idle';                 // count | go | done
 var online=false;                 // racing a room (true) or practice (false)
 var cars=[],me=null,laps=+(store('laps')||5),raceStart=0,paused=false,pauseAt=0;
 var scheme=store('steer2')||'wheel',soundOn=store('sound')!=='off';
+var gasMode=store('gas')||'lock',gasLock=false;   // lock: tap the gas once and it stays down until you tap it again or brake
 var msg='',msgUntil=0,finalLapShown=false,lastSend=0,resultsShown=false,doneAt=0;
 var board=[];                     // cars that have finished, in order: they leave the track and line up here
 var optRev=store('rev')==='1',optNight=store('night')==='1';   // practice extras, also the starting choice for a new room
@@ -289,7 +294,7 @@ var canOnline=false;
 var net={code:'',you:null,host:null,players:[],state:'lobby',laps:5,track:1,rev:false,night:false,cpu:true,cup:0,cupDone:0,rec:null},ws=null;
 
 function makeCar(slot,opt){
-  var row=Math.floor(slot/2),col=slot%2,i=wrap(N-5-row*4-col*2),lat=(col?1:-1)*13;
+  var row=Math.floor(slot/2),col=slot%2,i=wrap(N-6-row*6-col*3),lat=(col?1:-1)*15;
   var c={slot:slot,color:COLORS[slot%COLORS.length],name:'',cpu:false,remote:false,id:null,
     x:PX[i]-TY[i]*lat,y:PY[i]+TX[i]*lat,h:Math.atan2(TY[i],TX[i]),vx:0,vy:0,
     idx:i,s:i-N,fin:0,onRoad:true,offT:0,wrongT:0,skill:1,off:lat,wheel:0,gas:false,brake:false,
@@ -325,7 +330,7 @@ function startPractice(){
 function beginRace(at){
   mode='race';phase='count';raceStart=at;paused=false;finalLapShown=false;resultsShown=false;msg='';lightStep=0;board=[];
   oil=[];oilEp=-1;bestLap=0;lastLap=0;curLap=[];recTick=0;parts=[];if(skidG)skidG.clearRect(0,0,W,H);
-  pointers={};pendingTurn=0;steer=0;gear=1;bothT=0;wasGas=false;wasBrake=false;
+  pointers={};pendingTurn=0;steer=0;gear=1;bothT=0;wasGas=false;wasBrake=false;gasLock=false;
   hideAll();audioInit();
 }
 function addBoard(c,now){ // a finisher leaves the track and pops onto the leader board
@@ -352,6 +357,7 @@ function pedalState(){
   }else{
     // pedals: the tall one on the right is gas, the wide one beside it is the brake
     for(id in pointers){p=pointers[id];if(p.side==='R'&&!p.shift){if(p.x>=ui.split)gas=true;else brake=true}}
+    if(gasMode==='lock')gas=gasLock;
     steer=0;
     if(scheme==='slide')for(id in pointers){p=pointers[id];if(p.side==='L')steer=clamp((p.x-p.x0)/50,-1,1)}
   }
@@ -362,7 +368,7 @@ function pedalState(){
   if(brake)gas=false;
   return {gas:gas,brake:brake,rev:rev};
 }
-function shiftGear(){gear=-gear;beep(gear>0?520:300,.06)}
+function shiftGear(){gear=-gear;gasLock=false;beep(gear>0?520:300,.06)}
 function horn(){if(!me||me.fin||phase==='count')return;var t=performance.now();if(t-me.hornT<600)return;me.hornT=t;honk(0.06);if(online)send({t:'horn'})}
 cv.addEventListener('pointerdown',function(e){
   if(mode!=='race'||paused)return;
@@ -372,6 +378,10 @@ cv.addEventListener('pointerdown',function(e){
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
   var p={side:e.clientX<vw/2?'L':'R',x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,shift:false};
   if(scheme!=='buttons'&&inRect(ui.shift,e.clientX,e.clientY,8)){p.shift=true;shiftGear()}
+  else if(scheme!=='buttons'&&p.side==='R'){
+    if(p.x<ui.split)gasLock=false;                                   // the brake lifts the gas
+    else if(gasMode==='lock'){gasLock=!gasLock;beep(gasLock?600:420,.04)}
+  }
   pointers[e.pointerId]=p;
 });
 cv.addEventListener('pointermove',function(e){
@@ -382,7 +392,7 @@ cv.addEventListener('pointermove',function(e){
     var cx=ui.wheel.x,cy=ui.wheel.y;
     if(Math.hypot(p.x-cx,p.y-cy)>12&&Math.hypot(e.clientX-cx,e.clientY-cy)>12){
       var d=angDiff(Math.atan2(e.clientY-cy,e.clientX-cx),Math.atan2(p.y-cy,p.x-cx));
-      pendingTurn=clamp(pendingTurn+d,-4,4);if(me)me.wheel+=d;
+      pendingTurn=clamp(pendingTurn+d*WHEEL,-4,4);if(me)me.wheel+=d;
     }
   }
   p.x=e.clientX;p.y=e.clientY;
@@ -457,7 +467,7 @@ function effects(c,t){
   if(sp>120)for(k=0;k<cars.length;k++){
     o=cars[k];if(o===c||o.fin)continue;
     var dx=o.x-c.x,dy=o.y-c.y,f=dx*fx+dy*fy;
-    if(f>16&&f<85&&Math.abs(dy*fx-dx*fy)<12&&Math.hypot(o.vx,o.vy)>100){tow=true;break}
+    if(f>22&&f<95&&Math.abs(dy*fx-dx*fy)<14&&Math.hypot(o.vx,o.vy)>100){tow=true;break}
   }
   c.draft=clamp(c.draft+(tow?DT/0.45:-DT/0.35),0,1);
 }
@@ -492,8 +502,8 @@ function physics(now){
   for(i=0;i<cars.length;i++)for(j=i+1;j<cars.length;j++){
     var a=cars[i],b=cars[j];if((a.remote&&b.remote)||a.fin||b.fin)continue;
     var dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
-    if(d2<400&&d2>0.01){
-      var dist=Math.sqrt(d2),nx=dx/dist,ny=dy/dist,o=20-dist,vn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
+    if(d2<676&&d2>0.01){
+      var dist=Math.sqrt(d2),nx=dx/dist,ny=dy/dist,o=26-dist,vn=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
       if(a.remote){b.x+=nx*o;b.y+=ny*o;if(vn>0){b.vx+=nx*vn*0.75;b.vy+=ny*vn*0.75}}
       else if(b.remote){a.x-=nx*o;a.y-=ny*o;if(vn>0){a.vx-=nx*vn*0.75;a.vy-=ny*vn*0.75}}
       else{a.x-=nx*o/2;a.y-=ny*o/2;b.x+=nx*o/2;b.y+=ny*o/2;
@@ -593,14 +603,14 @@ function layout(){
   // controls
   var bot=padR.y+padR.h-(portrait?12:26),R,gh;
   if(!portrait){
-    gh=Math.min(100,padR.h*0.3);
-    ui.gas={x:padR.x+padR.w-10-46,y:bot-gh,w:46,h:gh};
-    ui.brake={x:padR.x+10,y:bot-58,w:padR.w-74,h:58};
+    gh=Math.min(110,padR.h*0.34);var gw=Math.min(58,padR.w*0.4);
+    ui.gas={x:padR.x+padR.w-10-gw,y:bot-gh,w:gw,h:gh};
+    ui.brake={x:padR.x+10,y:bot-58,w:padR.w-28-gw,h:58};
     ui.shift={x:padR.x+padR.w/2-27,y:padR.y+62,w:54,h:clamp(ui.gas.y-padR.y-62-18,50,84)};
     R=Math.min(padL.w/2-10,62);ui.wheel={x:padL.x+padL.w/2,y:bot-R-4,r:R};
   }else{
     gh=Math.min(108,padR.h-56);
-    ui.gas={x:padR.x+padR.w-12-46,y:bot-gh,w:46,h:gh};
+    ui.gas={x:padR.x+padR.w-12-58,y:bot-gh,w:58,h:gh};
     ui.shift={x:padR.x+12,y:bot-Math.min(84,gh),w:40,h:Math.min(84,gh)};
     ui.brake={x:ui.shift.x+48,y:bot-58,w:ui.gas.x-8-(ui.shift.x+48),h:58};
     R=Math.min((padL.h-52)/2-4,padL.w/2-14,66);ui.wheel={x:padL.x+padL.w/2,y:padL.y+48+(padL.h-52)/2,r:R};
@@ -616,119 +626,15 @@ function paintTrack(){ // draw the track once at screen resolution, and a clear 
   skidG=skid.getContext('2d');skidG.scale(sc*dpr,sc*dpr);skidG.lineCap='round';
 }
 
-// ---------------------------------------------------------------- scenery
-function mix(a,b,t){return 'rgb('+Math.round(a[0]+(b[0]-a[0])*t)+','+Math.round(a[1]+(b[1]-a[1])*t)+','+Math.round(a[2]+(b[2]-a[2])*t)+')'}
-function spots(rnd,count,minD,maxD){ // random points a set distance from the road
-  var out=[];
-  for(var t=0;t<count*40&&out.length<count;t++){var x=8+rnd()*(W-16),y=8+rnd()*(H-16),d=distRoad(x,y);if(d>=minD&&d<=maxD)out.push([x,y])}
-  return out;
-}
-function ring(rnd,x,y,r,n,jit){var o=[];for(var i=0;i<n;i++){var a=i/n*TAU,q=r*(1-jit+rnd()*jit*2);o.push([x+Math.cos(a)*q,y+Math.sin(a)*q])}return o}
-function poly(g,pts,dx,dy,k,cx,cy){g.beginPath();for(var i=0;i<pts.length;i++){var x=pts[i][0],y=pts[i][1];if(k){x=cx+(x-cx)*k;y=cy+(y-cy)*k}if(i)g.lineTo(x+(dx||0),y+(dy||0));else g.moveTo(x+(dx||0),y+(dy||0))}g.closePath()}
-function drawScenery(g,path){
-  var T=TRACKS[track],rnd=rng(track*977+5),i,j,P,x,y;
-  if(T.scene==='miami'){
-    // ocean, a beach right round the circuit, and a resort in the middle: lawn, pool, pastel hotels, palms
-    g.fillStyle='#1287ad';g.fillRect(0,0,W,H);
-    g.strokeStyle='rgba(255,255,255,.3)';g.lineWidth=1.5;
-    for(i=0;i<90;i++){x=rnd()*W;y=rnd()*H;g.beginPath();g.arc(x,y,9,Math.PI*1.15,Math.PI*1.85);g.stroke()}
-    path();g.strokeStyle='#8fd3e0';g.lineWidth=HALF*2+128;g.stroke();
-    path();g.strokeStyle='#f1dfae';g.lineWidth=HALF*2+112;g.stroke();
-    path();g.fillStyle='#46b36f';g.fill();
-    path();g.strokeStyle='#f1dfae';g.lineWidth=HALF*2+54;g.stroke();
-    [[250,232,84,56,'#ff9ebb'],[250,326,84,56,'#8fe3cf'],[666,232,84,56,'#ffd59e'],[666,326,84,56,'#c9b6ff']].forEach(function(b){
-      g.fillStyle='rgba(0,0,0,.25)';g.fillRect(b[0]+5,b[1]+6,b[2],b[3]);
-      g.fillStyle=b[4];g.fillRect(b[0],b[1],b[2],b[3]);
-      g.strokeStyle='rgba(255,255,255,.75)';g.lineWidth=2;g.strokeRect(b[0]+5,b[1]+5,b[2]-10,b[3]-10);
-      g.fillStyle='rgba(255,255,255,.8)';g.fillRect(b[0]+14,b[1]+14,9,7);g.fillRect(b[0]+b[2]-26,b[1]+b[3]-22,10,8);
-    });
-    g.fillStyle='#fff';g.beginPath();g.ellipse(500,285,96,44,0,0,TAU);g.fill();           // pool
-    g.fillStyle='#39c6e0';g.beginPath();g.ellipse(500,285,89,37,0,0,TAU);g.fill();
-    g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.5;
-    for(i=0;i<7;i++){x=440+i*20;g.beginPath();g.arc(x,285+(i%2?6:-8),7,Math.PI*1.2,Math.PI*1.8);g.stroke()}
-    spots(rnd,16,HALF+18,HALF+50).forEach(function(q,k){                                    // beach umbrellas
-      var cols=['#ff4d6d','#ffffff','#ffd23f','#38bdf8'];
-      for(j=0;j<8;j++){g.fillStyle=j%2?'#ffffff':cols[k%4];g.beginPath();g.moveTo(q[0],q[1]);g.arc(q[0],q[1],7,j/8*TAU,(j+1)/8*TAU);g.fill()}
-    });
-    spots(rnd,40,HALF+13,HALF+52).concat(spots(rnd,10,HALF+60,170)).forEach(function(q){     // palms
-      g.fillStyle='rgba(0,0,0,.22)';g.beginPath();g.arc(q[0]+4,q[1]+5,9,0,TAU);g.fill();
-      g.lineCap='round';g.lineWidth=3.4;
-      for(j=0;j<7;j++){var a=j/7*TAU+rnd();g.strokeStyle=j%2?'#1f8a4c':'#2fae62';g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(q[0]+Math.cos(a)*11,q[1]+Math.sin(a)*11);g.stroke()}
-      g.fillStyle='#7a5230';g.beginPath();g.arc(q[0],q[1],2.2,0,TAU);g.fill();
-    });
-  }else if(T.scene==='nyc'){
-    // city blocks seen from above: roofs, water towers, yellow cabs on the cross streets, and a park in the middle
-    g.fillStyle='#2a2e3a';g.fillRect(0,0,W,H);
-    var bw=64,bh=48,st=12,B=T.board,pk=[B[0]-26,B[1]-28,340,96],pal=['#5a6072','#6b7280','#7a5a4e','#8a8f9c','#4b5263','#94735f','#737b8c'];
-    for(var gy=-8;gy<H;gy+=bh+st)for(var gx=-14;gx<W;gx+=bw+st)for(i=0;i<2;i++)for(j=0;j<2;j++){
-      var lw=bw/2-1,lh=bh/2-1,lx=gx+i*bw/2,ly=gy+j*bh/2,cx=lx+lw/2,cy=ly+lh/2;
-      if(distRoad(cx,cy)<HALF+8+Math.hypot(lw,lh)/2)continue;
-      if(cx>pk[0]&&cx<pk[0]+pk[2]&&cy>pk[1]&&cy<pk[1]+pk[3]){
-        g.fillStyle='#3f9a5a';g.fillRect(lx-st/2,ly-st/2,lw+st,lh+st);
-        g.fillStyle='#2b7a45';g.beginPath();g.arc(lx+6+rnd()*18,ly+5+rnd()*12,4.5,0,TAU);g.arc(lx+6+rnd()*18,ly+5+rnd()*12,3.5,0,TAU);g.fill();
-        continue;
-      }
-      g.fillStyle='rgba(0,0,0,.38)';g.fillRect(lx+3,ly+3,lw,lh);
-      g.fillStyle=pal[Math.floor(rnd()*pal.length)];g.fillRect(lx,ly,lw,lh);
-      g.strokeStyle='rgba(255,255,255,.2)';g.lineWidth=1;g.strokeRect(lx+3.5,ly+3.5,lw-7,lh-7);
-      var q=rnd();
-      if(q<0.22){g.fillStyle='#8a6a4e';g.beginPath();g.arc(lx+lw*0.65,ly+lh*0.45,4,0,TAU);g.fill();g.fillStyle='#5f4632';g.beginPath();g.arc(lx+lw*0.65,ly+lh*0.45,1.6,0,TAU);g.fill()}
-      else if(q<0.5){g.fillStyle='#c9d2e6';g.fillRect(lx+7,ly+7,6,4);g.fillRect(lx+lw-14,ly+lh-11,6,4)}
-      else if(q<0.6){g.fillStyle='#4f9d63';g.fillRect(lx+6,ly+6,lw-12,lh-12)}
-    }
-    for(i=0;i<60;i++){                                                                       // cabs
-      var row=Math.floor(rnd()*11),col=Math.floor(rnd()*14),hz=rnd()<0.5;
-      x=hz?rnd()*W:-14+col*(bw+st)-st/2;y=hz?-8+row*(bh+st)-st/2:rnd()*H;
-      if(distRoad(x,y)<HALF+16||(x>pk[0]-8&&x<pk[0]+pk[2]+8&&y>pk[1]-8&&y<pk[1]+pk[3]+8))continue;
-      g.fillStyle=rnd()<0.7?'#ffd23f':'#e8ecf5';if(hz)g.fillRect(x-4,y-2,8,4);else g.fillRect(x-2,y-4,4,8);
-    }
-  }else{
-    // Utah: red desert, flat-topped mesas, snow-capped peaks and pines
-    g.fillStyle='#b9603a';g.fillRect(0,0,W,H);
-    for(i=0;i<70;i++){g.fillStyle=i%2?'rgba(120,50,25,.16)':'rgba(235,160,100,.14)';g.beginPath();g.ellipse(rnd()*W,rnd()*H,20+rnd()*50,10+rnd()*24,rnd()*3,0,TAU);g.fill()}
-    spots(rnd,90,HALF+9,400).forEach(function(q){                                            // pines
-      g.fillStyle='rgba(60,20,10,.3)';g.beginPath();g.arc(q[0]+2,q[1]+3,4,0,TAU);g.fill();
-      g.fillStyle='#2f5d3a';g.beginPath();g.arc(q[0],q[1],4,0,TAU);g.fill();
-      g.fillStyle='#4f8a56';g.beginPath();g.arc(q[0]-1,q[1]-1,1.8,0,TAU);g.fill();
-    });
-    var placed=[],sizes=[60,52,46,42,38,34,32,30,28,26,24,24,22,22,20,20,18,18,16,16];
-    sizes.forEach(function(r,n){
-      for(var t=0;t<80;t++){
-        var mx=r+rnd()*(W-2*r),my=r+rnd()*(H-2*r),ok=distRoad(mx,my)>HALF+10+r;
-        for(var k=0;ok&&k<placed.length;k++)if(Math.hypot(placed[k][0]-mx,placed[k][1]-my)<placed[k][2]+r+5)ok=false;
-        if(!ok)continue;
-        placed.push([mx,my,r]);
-        var pts=ring(rnd,mx,my,r,8+Math.floor(rnd()*3),0.16);
-        g.fillStyle='rgba(60,20,10,.38)';poly(g,pts,7,9);g.fill();
-        if(n%3===2){ // a mesa: flat top with a rim
-          g.fillStyle='#8f4526';poly(g,pts);g.fill();
-          g.fillStyle='#d2814f';poly(g,pts,-2,-3,0.86,mx,my);g.fill();
-          g.strokeStyle='rgba(255,220,180,.35)';g.lineWidth=1.5;poly(g,pts,-2,-3,0.6,mx,my);g.stroke();
-        }else{       // a peak: facets lit from the upper left, snow on the big ones
-          var apx=mx-r*0.08,apy=my-r*0.1;
-          for(var f=0;f<pts.length;f++){
-            var a=pts[f],b=pts[(f+1)%pts.length],lit=clamp(0.5-((a[0]+b[0])/2-mx)/r*0.35-((a[1]+b[1])/2-my)/r*0.45,0,1);
-            g.fillStyle=mix([92,60,52],[205,150,118],lit);g.beginPath();g.moveTo(apx,apy);g.lineTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.closePath();g.fill();
-            if(r>30){g.fillStyle=mix([176,196,224],[255,255,255],lit);g.beginPath();g.moveTo(apx,apy);
-              g.lineTo(apx+(a[0]-apx)*0.5,apy+(a[1]-apy)*0.5);g.lineTo(apx+(b[0]-apx)*0.42,apy+(b[1]-apy)*0.42);g.closePath();g.fill()}
-          }
-        }
-        break;
-      }
-    });
-  }
-}
 function drawTrack(g){
   var i,k;
   g.lineJoin='round';
   function path(){g.beginPath();g.moveTo(PX[0],PY[0]);for(var q=1;q<N;q++)g.lineTo(PX[q],PY[q]);g.closePath()}
-  g.save();g.beginPath();g.rect(0,0,W,H);g.clip();drawScenery(g,path);g.restore();
-  g.lineJoin='round';g.lineCap='butt';
-  path();g.strokeStyle='rgba(0,0,0,.3)';g.lineWidth=HALF*2+17;g.stroke();
+  g.fillStyle='#070b16';g.fillRect(0,0,W,H);   // plain dark field: the retro arcade look
   // barrier: a red and white kerb right round both edges
   path();g.strokeStyle='#eef2fb';g.lineWidth=HALF*2+9;g.stroke();
   g.setLineDash([9,9]);path();g.strokeStyle='#ff4d4d';g.stroke();g.setLineDash([]);
-  path();g.strokeStyle=TRACKS[track].road;g.lineWidth=HALF*2;g.stroke();
+  path();g.strokeStyle='#18223f';g.lineWidth=HALF*2;g.stroke();
   // boost pads: orange and yellow chevrons on one side of the road
   for(k=0;k<PADS.length;k++)for(i=0;i<6;i++){
     var pi=wrap(PADS[k].i+i),lat=PADS[k].side*WALL*0.5,hw=WALL*0.5;
@@ -736,7 +642,7 @@ function drawTrack(g){
     g.fillStyle=i%2?'#ff9f43':'#ffd23f';g.beginPath();g.moveTo(-4,-hw);g.lineTo(0,-hw);g.lineTo(5,0);g.lineTo(0,hw);g.lineTo(-4,hw);g.lineTo(1,0);g.closePath();g.fill();
     g.restore();
   }
-  g.fillStyle='rgba(200,210,235,.22)';
+  g.fillStyle='rgba(138,150,179,.22)';
   for(i=0;i<N;i+=6){g.save();g.translate(PX[i],PY[i]);g.rotate(Math.atan2(TY[i],TX[i]));g.fillRect(-5,-1,10,2);g.restore()}
   // start and finish line
   g.save();g.translate(PX[0],PY[0]);g.rotate(Math.atan2(TY[0],TX[0]));
@@ -753,7 +659,7 @@ function carShape(color,mine){ // drawn pointing right, about 24 long, around 0,
   ctx.fillStyle='#070b16';ctx.fillRect(-3,-2.2,5,4.4);
 }
 function drawCar(c,mine,now){
-  ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.h);ctx.scale(1.2,1.2);
+  ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.h);ctx.scale(CAR,CAR);
   if(c.boostT>0){ctx.fillStyle=Math.random()<0.5?'#ffd23f':'#ff9f43';ctx.beginPath();ctx.moveTo(-12,-3);ctx.lineTo(-19-Math.random()*6,0);ctx.lineTo(-12,3);ctx.closePath();ctx.fill()}
   if(c.draft>0.3){ctx.strokeStyle='rgba(238,242,251,'+(0.5*c.draft)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-14,-6);ctx.lineTo(-27,-6);ctx.moveTo(-15,0);ctx.lineTo(-31,0);ctx.moveTo(-14,6);ctx.lineTo(-27,6);ctx.stroke()}
   carShape(c.color,mine);
@@ -770,7 +676,7 @@ function layMarks(){
     var fx=Math.cos(c.h),fy=Math.sin(c.h),sp=Math.hypot(c.vx,c.vy),vl=-c.vx*fy+c.vy*fx;
     if(c.px!==null&&Math.hypot(c.x-c.px,c.y-c.py)<30&&sp>50&&((c.brake&&sp>90)||Math.abs(vl)>52||c.slipT>0)){
       skidG.strokeStyle='rgba(6,8,14,.3)';skidG.lineWidth=2.4;skidG.beginPath();
-      for(var s2=-1;s2<=1;s2+=2){skidG.moveTo(c.px-fx*8-fy*6*s2,c.py-fy*8+fx*6*s2);skidG.lineTo(c.x-fx*8-fy*6*s2,c.y-fy*8+fx*6*s2)}
+      for(var s2=-1;s2<=1;s2+=2){skidG.moveTo(c.px-fx*10-fy*8*s2,c.py-fy*10+fx*8*s2);skidG.lineTo(c.x-fx*10-fy*8*s2,c.y-fy*10+fx*8*s2)}
       skidG.stroke();
       if(Math.random()<0.25)puff(c.x-fx*8,c.y-fy*8,1);
     }
@@ -889,7 +795,7 @@ function drawPads(now){
   ctx.restore();
   // pedals
   pedal(ui.brake,me.brake,'#ff4d4d','BRAKE');
-  pedal(ui.gas,me.gas,gear>0?'#38bdf8':'#ff9f43','GAS');
+  pedal(ui.gas,me.gas||gasLock,gear>0?'#38bdf8':'#ff9f43',gasLock?'LOCKED':'GAS');
   // shifter
   var s=ui.shift,sx=s.x+14,lx=s.x+28+(s.w-28)/2,ky=gear>0?s.y+13:s.y+s.h-13;
   rr(sx-7,s.y,14,s.h,7);ctx.fillStyle='#141d36';ctx.fill();ctx.strokeStyle='#3a4a78';ctx.lineWidth=2;ctx.stroke();
@@ -915,7 +821,7 @@ function render(now){
     // the ghost of your best lap (practice)
     if(!online&&ghost&&me&&phase==='go'){
       var gi=Math.floor(((paused?pauseAt:now)-raceStart-me.lapStart)/1000*30)*3;
-      if(gi>=0&&gi<ghost.length-2){ctx.save();ctx.globalAlpha=0.3;ctx.translate(ghost[gi],ghost[gi+1]);ctx.rotate(ghost[gi+2]);ctx.scale(1.2,1.2);carShape('#ffffff',false);ctx.restore()}
+      if(gi>=0&&gi<ghost.length-2){ctx.save();ctx.globalAlpha=0.3;ctx.translate(ghost[gi],ghost[gi+1]);ctx.rotate(ghost[gi+2]);ctx.scale(CAR,CAR);carShape('#ffffff',false);ctx.restore()}
     }
   }
   for(i=0;i<cars.length;i++){c=cars[i];if(c!==me&&!c.fin)drawCar(c,false,now)}
@@ -923,7 +829,7 @@ function render(now){
   for(i=parts.length-1;i>=0;i--){ // dust
     var pt=parts[i];pt.life-=frameDt*1.8;if(pt.life<=0){parts.splice(i,1);continue}
     pt.x+=pt.vx*frameDt;pt.y+=pt.vy*frameDt;
-    ctx.fillStyle='rgba(210,200,185,'+(pt.life*0.45)+')';ctx.beginPath();ctx.arc(pt.x,pt.y,2+(1-pt.life)*5,0,TAU);ctx.fill();
+    ctx.fillStyle='rgba(138,150,179,'+(pt.life*0.4)+')';ctx.beginPath();ctx.arc(pt.x,pt.y,2+(1-pt.life)*5,0,TAU);ctx.fill();
   }
   if(night&&mode==='race')drawNight();
   ctx.restore();
@@ -934,9 +840,9 @@ function render(now){
   if(phase==='count'){
     var left=-since/1000;
     drawLights(mx,my,left>3?0:left>1.5?1:2);
-    p=toScreen(me.x,me.y);textO('YOU',p[0],p[1]-22,8,'#eef2fb');
+    p=toScreen(me.x,me.y);textO('YOU',p[0],p[1]-28,8,'#eef2fb');
     textO(scheme==='wheel'?'LEFT THUMB: TURN THE WHEEL':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#eef2fb');
-    textO(scheme==='buttons'?'BOTH THUMBS = BRAKE':'RIGHT THUMB: GAS AND BRAKE',mx,my+64,portrait?7:8,'#eef2fb');
+    textO(scheme==='buttons'?'BOTH THUMBS = BRAKE':gasMode==='lock'?'TAP GAS ONCE: IT STAYS ON':'RIGHT THUMB: GAS AND BRAKE',mx,my+64,portrait?7:8,'#eef2fb');
   }else if(since<1600&&phase==='go'){
     var fade=since>1200?1-(since-1200)/400:1;
     ctx.save();ctx.globalAlpha=fade;drawLights(mx,my,3);ctx.restore();
@@ -1057,10 +963,10 @@ function paintMenuColor(){
   paintSw($('menuSw'),myColor(),[],j);
   $('colorNote').textContent=j?'Jeff always drives the blue car.':'Pick your car. Blue is saved for Jeff. In a room, colors are first come, first served.';
 }
-var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it. It goes all the way round, and the car turns exactly as far as the wheel. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
+var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it. It goes all the way round; the car turns about half as far as the wheel. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   slide:'Slide: hold your left thumb down and slide it left or right; let go to straighten. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   buttons:'Buttons: the car drives itself forward. Hold the left or right side to turn, both sides to brake, and keep holding to back up.'};
-function paintHow(){$('howto').textContent=HOW[scheme]}
+function paintHow(){$('howto').textContent=HOW[scheme]+(scheme==='buttons'?'':gasMode==='lock'?' Gas: tap it once and it stays down; tap again, or brake, to lift off.':' Gas: hold it down to go.')}
 
 // ---------------------------------------------------------------- online rooms
 function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
@@ -1186,6 +1092,7 @@ var paintMenuTog=togs('menuTog',function(k,v){
 });
 var paintLobTog=togs('lobTog',function(k,v){send({t:'opt',k:k,v:v})});
 var paintLobCup=seg('segLobCup',0,function(v){send({t:'cup',n:+v})});
+seg('segGas',gasMode,function(v){gasMode=v;gasLock=false;store('gas',v);paintHow()});
 seg('segSound',soundOn?'on':'off',function(v){soundOn=v==='on';store('sound',v)});
 var paintLobLaps=seg('segLobLaps',5,function(v){send({t:'laps',n:+v})});
 var paintLobTrack=seg('segLobTrack',1,function(v){send({t:'track',n:+v})});
@@ -1232,7 +1139,7 @@ fetch('health',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).
 window.__m8={get cars(){return cars},get me(){return me},get phase(){return phase},get mode(){return mode},get N(){return N},
   set autopilot(v){autopilot=v},startPractice:startPractice,get laps(){return laps},set laps(v){laps=v},get ui(){return ui},get gear(){return gear},
   get track(){return track},setTrack:function(k,r){setTrack(k,r);attract()},get board(){return board},get net(){return net},
-  set night(v){optNight=v},get oil(){return oil},get pads(){return PADS},get best(){return bestLap},get ghost(){return ghost},horn:horn};
+  set night(v){optNight=v},get gasLock(){return gasLock},get oil(){return oil},get pads(){return PADS},get best(){return bestLap},get ghost(){return ghost},horn:horn};
 })();
 </script>
 </body>

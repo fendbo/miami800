@@ -13,7 +13,7 @@ const PUB = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon' };
 const MAX_PLAYERS = 8;          // the host plus 7 invited
-const TRACKS = 3;               // 0 Miami, 1 New York, 2 Utah (shapes live in the page)
+const TRACKS = 3;               // 0 Training, 1 Classic, 2 Twister (shapes live in the page)
 const POINTS = [10, 8, 6, 5, 4, 3, 2, 1];   // cup points by finishing place
 const BOT_NAMES = ['Dash', 'Vera', 'Buck', 'Nell', 'Otto', 'Roxy', 'Gus'];
 const BOT_SKILL = [0.93, 0.9, 0.87, 0.84, 0.81, 0.78, 0.75];
