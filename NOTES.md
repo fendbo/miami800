@@ -123,6 +123,17 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   two low sawtooth notes (311 and 392 Hz) through a low-pass, because the old square beeps sounded "fake
   high-pitched". The server relays press and release; releases are never rate-limited.
 
+## Changed 2026-11-18, seventh round (steering again)
+- Owner: with swipe-only steering, turning the wheel sometimes "read as reverse". Cause: he circles his thumb, and
+  under the middle of a circle a clockwise thumb is moving left, which the swipe read as a left turn. His rule,
+  now built: plant the thumb and keep it down; **circling clockwise turns the wheel clockwise, and sliding right
+  also turns it clockwise** (mirror for the other way).
+- How: the touch-down point counts as the top of an imaginary wheel whose hub is `PIVOT` (80 px) below it. Each
+  thumb movement adds to the wheel: above the hub, the larger of the slide and the rotation; beside or below the
+  hub, the rotation only. So a circle keeps turning the same way all the way round and never flips.
+- Also fixed: steering used to invert whenever the car was rolling backwards (for example after a bump). It now
+  inverts only in reverse gear.
+
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
   `test/phone.py` in Chrome at phone size (computer cars complete every track; lights, flags, leader board; a

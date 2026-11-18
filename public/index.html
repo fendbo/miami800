@@ -209,6 +209,7 @@ var TOP=285;                      // top speed on the road
 var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
 var WHEEL_MAX=1.75;               // the wheel turns 100 degrees each way and stops, like a real one
 var SWIPE=85;                     // how far the thumb slides, in screen pixels, to take the wheel from straight to full lock
+var PIVOT=80;                     // the imaginary wheel's hub sits this many pixels below where the thumb lands
 var TURN_R=36;                    // tightest turning circle at full lock (radius, in track units)
 var GRIP=380;                     // how hard the tyres can corner: at speed the car runs wide instead of spinning
 // Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
@@ -424,10 +425,17 @@ cv.addEventListener('pointermove',function(e){
   var p=pointers[e.pointerId];if(!p)return;
   e.preventDefault();
   if(p.side==='L'&&scheme==='wheel'&&me){
-    // Steering by swipe: wherever the thumb lands is the set point, and sliding it left or right from there turns the
-    // wheel (SWIPE pixels for full lock). The thumb does not have to be on the wheel. Hold it off-centre and the car
-    // keeps curving; let go and the wheel springs back to straight.
-    me.wheel=clamp(p.w0+(e.clientX-p.x0)/SWIPE*WHEEL_MAX,-WHEEL_MAX,WHEEL_MAX);
+    // Steering by thumb. Where the thumb lands counts as the TOP of an imaginary wheel whose hub is PIVOT pixels below.
+    // Two motions turn it, and they never disagree: circling the thumb clockwise round that hub turns the wheel
+    // clockwise (and counterclockwise likewise), and a plain slide to the right also turns it clockwise (left:
+    // counterclockwise). The thumb can keep circling past the side and under the hub and the wheel keeps going the
+    // same way; it never flips. Each movement adds to the wheel, up to its stops.
+    var hx=p.x0,hy=p.y0+PIVOT,ax=p.x-hx,ay=p.y-hy,bx=e.clientX-hx,by=e.clientY-hy,rot=0;
+    if(Math.hypot(ax,ay)>10&&Math.hypot(bx,by)>10)rot=angDiff(Math.atan2(by,bx),Math.atan2(ay,ax));
+    var lin=(e.clientX-p.x)/SWIPE*WHEEL_MAX,d;
+    if(by<0)d=lin*rot>=0?(Math.abs(lin)>Math.abs(rot)?lin:rot):lin+rot;   // above the hub: a slide and a turn mean the same thing
+    else d=rot;                                                            // beside or below it: only the circling counts
+    me.wheel=clamp(me.wheel+d,-WHEEL_MAX,WHEEL_MAX);
   }
   p.x=e.clientX;p.y=e.clientY;
 });
@@ -544,7 +552,7 @@ function physics(now){
         c.steerS+=(wx-c.steerS)*Math.min(1,DT/0.1);
         var sx=Math.abs(c.steerS),wr=vv*Math.pow(sx,2.2)/TURN_R;
         wr=Math.min(wr,GRIP/Math.max(vv,1),2.8);
-        c.h+=(c.steerS<0?-1:1)*wr*DT*(vfw<-4?-1:1);
+        c.h+=(c.steerS<0?-1:1)*wr*DT*(gear<0&&vfw<-4?-1:1);   // only reverse gear steers backwards, never a bump or a slide
         if(sx>0.3){var cap=TOP*(1-0.45*Math.pow((sx-0.3)/0.7,1.2)),spn=Math.hypot(c.vx,c.vy);if(spn>cap){var sf=Math.max(cap/spn,1-1.3*DT);c.vx*=sf;c.vy*=sf}}
         if(!pointerOn('L'))c.wheel*=Math.exp(-9*DT);                 // hands off: it centres itself
       }
@@ -950,7 +958,7 @@ function render(now){
     var left=-since/1000;
     drawLights(mx,my,left>3?0:left>1.5?1:2);
     p=toScreen(me.x,me.y);textO('YOU',p[0],p[1]-28,8,'#eef2fb');
-    textO(scheme==='wheel'?'LEFT THUMB: SLIDE LEFT OR RIGHT TO STEER':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#eef2fb');
+    textO(scheme==='wheel'?'LEFT THUMB: SLIDE OR CIRCLE TO STEER':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#eef2fb');
     textO(scheme==='buttons'?'BOTH THUMBS = BRAKE':gasMode==='lock'?'TAP GAS ONCE: IT STAYS ON':'RIGHT THUMB: GAS AND BRAKE',mx,my+64,portrait?7:8,'#eef2fb');
   }else if(since<1600&&phase==='go'){
     var fade=since>1200?1-(since-1200)/400:1;
@@ -1070,7 +1078,7 @@ function paintMenuColor(){
   paintSw($('menuSw'),myColor(),[],j);$('colorChip').style.background=COLORS[myColor()];
   $('colorNote').textContent=j?'Jeff always drives the blue car.':'Blue is saved for Jeff. In a room, colors are first come, first served.';
 }
-var HOW={wheel:'Wheel: put your left thumb down anywhere on the left side and slide it left or right; the wheel turns with it. Hold it there and the car keeps curving; slide further for a tighter curve. Let go and it springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
+var HOW={wheel:'Wheel: put your left thumb down anywhere on the left side and keep it down. Slide it right, or circle it clockwise, to turn the wheel clockwise; slide left or circle counterclockwise to turn it the other way. Hold it there and the car keeps curving. Let go and the wheel springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   slide:'Slide: hold your left thumb down and slide it left or right; let go to straighten. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   buttons:'Buttons: the car drives itself forward. Hold the left or right side to turn, both sides to brake, and keep holding to back up.'};
 function paintHow(){$('howto').textContent=HOW[scheme]+(scheme==='buttons'?'':gasMode==='lock'?' Gas: tap it once and it stays down; tap again, or brake, to lift off.':' Gas: hold it down to go.')}
