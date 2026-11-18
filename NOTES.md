@@ -112,6 +112,17 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   drop-downs, PRACTICE, the room row, OPTIONS. Steering, gas, sound, direction and light moved to an OPTIONS panel.
   The room's host settings are drop-downs too. All choices are native `<select>` elements; `seg()` wires them.
 
+## Changed 2026-11-17 late evening, sixth round
+- Owner on the menu redesign: "way better". Logo made much bigger with empty space round it; on a phone held
+  sideways the logo sits to the left of the settings.
+- **Steering is by swipe now** (owner's own design, after the wheel was "getting a little better but still
+  difficult"): wherever the left thumb lands is the set point, and sliding left or right from there turns the wheel
+  (`SWIPE` 85 px to full lock). The thumb does not need to be on the wheel; the drawn wheel just shows the angle.
+  Everything after the wheel angle is unchanged (turning circle, power 2.2 response, smoothing, speed scrub).
+- **Horn** sounds for as long as it is held and can be tapped as fast as you like (it had a 0.6 s lock-out). Sound is
+  two low sawtooth notes (311 and 392 Hz) through a low-pass, because the old square beeps sounded "fake
+  high-pitched". The server relays press and release; releases are never rate-limited.
+
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
   `test/phone.py` in Chrome at phone size (computer cars complete every track; lights, flags, leader board; a

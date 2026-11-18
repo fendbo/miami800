@@ -31,7 +31,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .overlay[hidden]{display:none}
 .panel{width:100%;max-width:440px;margin:auto;display:flex;flex-direction:column;gap:12px;
   background:var(--pad);border:2px solid var(--line);padding:16px}
-#logo{align-self:center;border-radius:14px;image-rendering:pixelated}
+/* the menu opens on the logo, with air round it; the settings sit below (beside it on a phone held sideways) */
+.hero{display:flex;flex-direction:column;align-items:center;gap:22px;padding:30px 0 26px}
+#logo{width:148px;height:148px;border-radius:32px;image-rendering:pixelated}
+.ctl{min-width:0}
 h1{font:400 22px/1.1 var(--display);margin:0;letter-spacing:.04em;text-align:center}
 h1 b{color:var(--hot);font-weight:400}
 h2{font:400 13px/1.3 var(--display);margin:0;text-align:center;text-wrap:balance}
@@ -89,7 +92,11 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
   .panel{max-width:700px;gap:8px;padding:12px}
   .cols{flex-direction:row;gap:14px}
   .cols>.col{flex:1 1 0;min-width:0;gap:8px}
-  .tag,#lobHint,#logo{display:none}
+  .tag,#lobHint{display:none}
+  .panel.menu{flex-direction:row;align-items:center;max-width:780px;gap:30px;padding:14px 18px}
+  .hero{flex:0 0 230px;padding:0;gap:18px}
+  #logo{width:132px;height:132px;border-radius:28px}
+  .ctl{flex:1 1 0;gap:8px}
   h1{font-size:16px}
   p{font-size:11px;line-height:1.35}
   button.b{padding:9px 8px}
@@ -104,9 +111,12 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
 <div id="probe"></div>
 
 <div class="overlay" id="menu">
-  <div class="panel">
-    <img id="logo" src="icon-192.png" alt="" width="64" height="64" onerror="this.remove()">
-    <h1>MIAMI <b>800</b></h1>
+  <div class="panel menu">
+    <div class="hero">
+      <img id="logo" src="icon-192.png" alt="" onerror="this.remove()">
+      <h1>MIAMI <b>800</b></h1>
+    </div>
+    <div class="col ctl">
     <p class="note" id="menuMsg" hidden></p>
     <div class="row nowrap">
       <input id="name" maxlength="10" placeholder="Your name" autocomplete="off" aria-label="Your name">
@@ -130,6 +140,7 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
     </div>
     <p id="offlineNote" hidden>Racing friends on their own phones turns on once the game is on its own site. This preview is practice only.</p>
     <div class="row nowrap foot"><a id="home" href="https://lubowcade.com/">&lt; Lubowcade</a><button class="b ghost" id="bOptions">OPTIONS</button></div>
+    </div>
   </div>
 </div>
 
@@ -197,6 +208,7 @@ var W=1000,H=620;                 // the track's own coordinate space
 var TOP=285;                      // top speed on the road
 var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
 var WHEEL_MAX=1.75;               // the wheel turns 100 degrees each way and stops, like a real one
+var SWIPE=85;                     // how far the thumb slides, in screen pixels, to take the wheel from straight to full lock
 var TURN_R=36;                    // tightest turning circle at full lock (radius, in track units)
 var GRIP=380;                     // how hard the tyres can corner: at speed the car runs wide instead of spinning
 // Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
@@ -314,7 +326,7 @@ function makeCar(slot,opt){
     x:PX[i]-TY[i]*lat,y:PY[i]+TX[i]*lat,h:Math.atan2(TY[i],TX[i]),vx:0,vy:0,
     idx:i,s:i-N,fin:0,onRoad:true,offT:0,wrongT:0,skill:1,off:lat,wheel:0,gas:false,brake:false,
     sx:0,sy:0,sh:0,svx:0,svy:0,st:0,popT:0,
-    steerS:0,wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,px:null,py:0};
+    steerS:0,wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,hornOn:false,px:null,py:0};
   for(var k in opt)c[k]=opt[k];
   return c;
 }
@@ -345,7 +357,7 @@ function startPractice(){
 function beginRace(at){
   mode='race';phase='count';raceStart=at;paused=false;finalLapShown=false;resultsShown=false;msg='';lightStep=0;board=[];
   oil=[];oilEp=-1;bestLap=0;lastLap=0;curLap=[];recTick=0;parts=[];if(skidG)skidG.clearRect(0,0,W,H);
-  pointers={};pendingTurn=0;steer=0;gear=1;bothT=0;wasGas=false;wasBrake=false;gasLock=false;
+  horn(false);pointers={};pendingTurn=0;steer=0;gear=1;bothT=0;wasGas=false;wasBrake=false;gasLock=false;
   hideAll();audioInit();
 }
 function addBoard(c,now){ // a finisher leaves the track and pops onto the leader board
@@ -363,7 +375,7 @@ function pedalState(){
   var gas=false,brake=false,rev=gear<0,id,p;
   if(scheme==='buttons'){
     var l=false,r=false;
-    for(id in pointers){p=pointers[id];if(p.side==='L')l=true;else r=true}
+    for(id in pointers){p=pointers[id];if(p.side==='L')l=true;else if(p.side==='R')r=true}
     brake=l&&r;gas=!brake;rev=false;
     steer=brake?0:(l?-1:r?1:0);
     // keep holding both sides after the car stops and it backs up
@@ -384,14 +396,23 @@ function pedalState(){
   return {gas:gas,brake:brake,rev:rev};
 }
 function shiftGear(){gear=-gear;gasLock=false;beep(gear>0?520:300,.06)}
-function horn(){if(!me||me.fin||phase==='count')return;var t=performance.now();if(t-me.hornT<600)return;me.hornT=t;honk(0.06);if(online)send({t:'horn'})}
+function horn(on){ // press and release: the horn sounds for as long as it is held
+  if(!me||me.fin){on=false}
+  if(on===myHorn)return;myHorn=on;
+  if(on){hornOn('me',0.085);me.hornOn=true}else{hornOff('me');if(me)me.hornOn=false}
+  if(online)send({t:'horn',v:on});
+}
+var myHorn=false;
 cv.addEventListener('pointerdown',function(e){
   if(mode!=='race'||paused)return;
   e.preventDefault();
   if(inRect(pauseBtn,e.clientX,e.clientY,0)){openPause();return}
-  if(ui.horn&&Math.hypot(e.clientX-ui.horn.x,e.clientY-ui.horn.y)<ui.horn.r+8){horn();return}
+  if(ui.horn&&Math.hypot(e.clientX-ui.horn.x,e.clientY-ui.horn.y)<ui.horn.r+10){
+    try{cv.setPointerCapture(e.pointerId)}catch(_){}
+    pointers[e.pointerId]={side:'H',x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,shift:false,w0:0};horn(true);return;
+  }
   try{cv.setPointerCapture(e.pointerId)}catch(_){}
-  var p={side:e.clientX<vw/2?'L':'R',x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,shift:false};
+  var p={side:e.clientX<vw/2?'L':'R',x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,shift:false,w0:me?me.wheel:0};
   if(scheme!=='buttons'&&inRect(ui.shift,e.clientX,e.clientY,8)){p.shift=true;shiftGear()}
   else if(scheme!=='buttons'&&p.side==='R'){
     if(p.x<ui.split)gasLock=false;                                   // the brake lifts the gas
@@ -402,24 +423,18 @@ cv.addEventListener('pointerdown',function(e){
 cv.addEventListener('pointermove',function(e){
   var p=pointers[e.pointerId];if(!p)return;
   e.preventDefault();
-  if(p.side==='L'&&scheme==='wheel'){
-    // the thumb turns the wheel, up to its stops. The wheel sets how hard the car is turning, as in a real car:
-    // hold it turned and the car keeps going round the curve; let go and it springs back to straight.
-    var cx=ui.wheel.x,cy=ui.wheel.y;
-    if(Math.hypot(p.x-cx,p.y-cy)>12&&Math.hypot(e.clientX-cx,e.clientY-cy)>12){
-      var d=angDiff(Math.atan2(e.clientY-cy,e.clientX-cx),Math.atan2(p.y-cy,p.x-cx));
-      // near the rim the wheel follows the thumb exactly; nearer the hub the same thumb movement turns it less,
-      // so a thumb resting close to the middle cannot whip it from lock to lock
-      var rr0=Math.hypot(e.clientX-cx,e.clientY-cy);d*=rr0/Math.max(rr0,ui.wheel.r*0.75);
-      if(me)me.wheel=clamp(me.wheel+d,-WHEEL_MAX,WHEEL_MAX);
-    }
+  if(p.side==='L'&&scheme==='wheel'&&me){
+    // Steering by swipe: wherever the thumb lands is the set point, and sliding it left or right from there turns the
+    // wheel (SWIPE pixels for full lock). The thumb does not have to be on the wheel. Hold it off-centre and the car
+    // keeps curving; let go and the wheel springs back to straight.
+    me.wheel=clamp(p.w0+(e.clientX-p.x0)/SWIPE*WHEEL_MAX,-WHEEL_MAX,WHEEL_MAX);
   }
   p.x=e.clientX;p.y=e.clientY;
 });
-function up(e){delete pointers[e.pointerId]}
+function up(e){var p=pointers[e.pointerId];if(p&&p.side==='H')horn(false);delete pointers[e.pointerId]}
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
-window.addEventListener('keydown',function(e){if(e.target.tagName==='INPUT')return;if(e.key==='r'&&!keys.r&&mode==='race')shiftGear();if(e.key==='h'&&!keys.h&&mode==='race')horn();keys[e.key]=true;if(mode==='race'&&e.key.indexOf('Arrow')===0)e.preventDefault();if(e.key==='Escape'&&mode==='race')paused?closePause():openPause()});
-window.addEventListener('keyup',function(e){keys[e.key]=false});
+window.addEventListener('keydown',function(e){if(e.target.tagName==='INPUT')return;if(e.key==='r'&&!keys.r&&mode==='race')shiftGear();if(e.key==='h'&&!keys.h&&mode==='race')horn(true);keys[e.key]=true;if(mode==='race'&&e.key.indexOf('Arrow')===0)e.preventDefault();if(e.key==='Escape'&&mode==='race')paused?closePause():openPause()});
+window.addEventListener('keyup',function(e){keys[e.key]=false;if(e.key==='h')horn(false)});
 document.addEventListener('gesturestart',function(e){e.preventDefault()});
 // iPhone shows its text magnifier when a finger rests on the page; cancelling the touch on the game canvas stops it
 ['touchstart','touchmove','touchend'].forEach(function(n){cv.addEventListener(n,function(e){if(e.cancelable)e.preventDefault()},{passive:false})});
@@ -629,10 +644,19 @@ function screech(sp){ // tyre squeal when the brake goes down at speed; longer t
     g.gain.setValueAtTime(0.0001,n);g.gain.exponentialRampToValueAtTime(0.22,n+0.03);g.gain.exponentialRampToValueAtTime(0.0001,n+dur);
     src.connect(f);f.connect(g);g.connect(AC.destination);src.start(n);src.stop(n+dur+0.05)}catch(e){}
 }
-function honk(vol){
-  if(!AC||!soundOn)return;
-  try{[392,494].forEach(function(f){var o=AC.createOscillator(),g=AC.createGain();o.type='square';o.frequency.value=f;g.gain.value=vol;
-    g.gain.setTargetAtTime(0,AC.currentTime+0.2,0.03);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+0.36)})}catch(e){}
+// A car horn: two low reedy notes a third apart, sounding for as long as the button is held.
+var horns={};
+function hornOn(id,vol){
+  if(!AC||!soundOn||horns[id])return;
+  try{var n=AC.currentTime,f=AC.createBiquadFilter(),g=AC.createGain(),os=[311,392].map(function(hz){var o=AC.createOscillator();o.type='sawtooth';o.frequency.value=hz;o.connect(f);o.start();return o});
+    f.type='lowpass';f.frequency.value=1500;f.Q.value=2;g.gain.setValueAtTime(0.0001,n);g.gain.exponentialRampToValueAtTime(vol,n+0.012);
+    f.connect(g);g.connect(AC.destination);
+    horns[id]={os:os,g:g,t:setTimeout(function(){hornOff(id)},id==='me'?5000:3000)};   // never left stuck on
+  }catch(e){}
+}
+function hornOff(id){
+  var h=horns[id];if(!h)return;delete horns[id];clearTimeout(h.t);
+  try{var n=AC.currentTime;h.g.gain.cancelScheduledValues(n);h.g.gain.setTargetAtTime(0.0001,n,0.02);h.os.forEach(function(o){o.stop(n+0.15)})}catch(e){}
 }
 function boostSnd(){
   if(!AC||!soundOn)return;
@@ -731,6 +755,7 @@ function drawCar(c,mine,now){
   if(c.boostT>0){ctx.fillStyle=Math.random()<0.5?'#ffd23f':'#ff9f43';ctx.beginPath();ctx.moveTo(-12,-3);ctx.lineTo(-19-Math.random()*6,0);ctx.lineTo(-12,3);ctx.closePath();ctx.fill()}
   if(c.draft>0.3){ctx.strokeStyle='rgba(238,242,251,'+(0.5*c.draft)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-14,-6);ctx.lineTo(-27,-6);ctx.moveTo(-15,0);ctx.lineTo(-31,0);ctx.moveTo(-14,6);ctx.lineTo(-27,6);ctx.stroke()}
   carShape(c.color,mine);
+  if(c.hornOn)c.hornT=now-((now/3)%150);
   if(now-c.hornT<450&&c.hornT){ // honk: two arcs out of the nose
     var k=(now-c.hornT)/450;ctx.strokeStyle='rgba(255,210,63,'+(1-k)+')';ctx.lineWidth=1.6;
     ctx.beginPath();ctx.arc(10,0,6+k*10,-0.7,0.7);ctx.stroke();ctx.beginPath();ctx.arc(10,0,12+k*14,-0.6,0.6);ctx.stroke();
@@ -843,7 +868,7 @@ function drawPads(now){
   if(bestLap&&!portrait)text('BEST '+fmtTime(bestLap),hx,hy+34,7,'#8a96b3');
   if(me.boostT>0)text('BOOST',rx,hy+18,8,'#ff9f43');else if(me.draft>0.4)text('DRAFT',rx,hy+18,8,'#38bdf8');
   // horn
-  var hn=ui.horn,hon=performance.now()-me.hornT<250;
+  var hn=ui.horn,hon=myHorn;
   ctx.beginPath();ctx.arc(hn.x,hn.y,hn.r,0,TAU);ctx.fillStyle=hon?'#ffd23f':'#141d36';ctx.fill();ctx.strokeStyle='#3a4a78';ctx.lineWidth=2;ctx.stroke();
   text('HORN',hn.x,hn.y+1,6,hon?'#04121c':'#8a96b3');
   var w=ui.wheel,on=pointerOn('L');
@@ -925,7 +950,7 @@ function render(now){
     var left=-since/1000;
     drawLights(mx,my,left>3?0:left>1.5?1:2);
     p=toScreen(me.x,me.y);textO('YOU',p[0],p[1]-28,8,'#eef2fb');
-    textO(scheme==='wheel'?'LEFT THUMB: TURN AND HOLD THE WHEEL':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#eef2fb');
+    textO(scheme==='wheel'?'LEFT THUMB: SLIDE LEFT OR RIGHT TO STEER':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#eef2fb');
     textO(scheme==='buttons'?'BOTH THUMBS = BRAKE':gasMode==='lock'?'TAP GAS ONCE: IT STAYS ON':'RIGHT THUMB: GAS AND BRAKE',mx,my+64,portrait?7:8,'#eef2fb');
   }else if(since<1600&&phase==='go'){
     var fade=since>1200?1-(since-1200)/400:1;
@@ -993,7 +1018,7 @@ function toMenu(note){
 function solo(){return !online||net.players.filter(function(p){return p.racing}).length<=1}
 function openPause(){
   if(mode!=='race')return;
-  paused=true;pauseAt=performance.now();pointers={};
+  horn(false);paused=true;pauseAt=performance.now();pointers={};
   $('pauseTitle').textContent=solo()?'PAUSED':'THE RACE IS STILL RUNNING';
   $('pause').hidden=false;
 }
@@ -1045,7 +1070,7 @@ function paintMenuColor(){
   paintSw($('menuSw'),myColor(),[],j);$('colorChip').style.background=COLORS[myColor()];
   $('colorNote').textContent=j?'Jeff always drives the blue car.':'Blue is saved for Jeff. In a room, colors are first come, first served.';
 }
-var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it, like a real steering wheel. Hold it turned and the car keeps curving; small turns are gentle, and the further you turn it, the tighter the curve. Let go and it springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
+var HOW={wheel:'Wheel: put your left thumb down anywhere on the left side and slide it left or right; the wheel turns with it. Hold it there and the car keeps curving; slide further for a tighter curve. Let go and it springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   slide:'Slide: hold your left thumb down and slide it left or right; let go to straighten. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   buttons:'Buttons: the car drives itself forward. Hold the left or right side to turn, both sides to brake, and keep holding to back up.'};
 function paintHow(){$('howto').textContent=HOW[scheme]+(scheme==='buttons'?'':gasMode==='lock'?' Gas: tap it once and it stays down; tap again, or brake, to lift off.':' Gas: hold it down to go.')}
@@ -1109,7 +1134,7 @@ function onMsg(m){
     });
   }
   else if(m.t==='horn'){
-    if(m.id!==net.you)cars.forEach(function(c){if(c.id===m.id&&!c.fin){c.hornT=performance.now();honk(0.03)}});
+    if(m.id!==net.you)cars.forEach(function(c){if(c.id===m.id){c.hornOn=!!m.v&&!c.fin;if(c.hornOn){hornOn('p'+m.id,0.04);setTimeout(function(){c.hornOn=false},3000)}else hornOff('p'+m.id)}});
   }
   else if(m.t==='end'){
     var L=$('resList');L.textContent='';var mine=0;

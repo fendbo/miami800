@@ -205,7 +205,9 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'horn':
-        if (room && Date.now() - p.hornAt > 600) { p.hornAt = Date.now(); all(room, { t: 'horn', id: p.id }); }
+        // pressed (v true) and released (v false). Releases always go through, so no horn is left sounding.
+        if (room && m.v === false) all(room, { t: 'horn', id: p.id, v: false });
+        else if (room && Date.now() - p.hornAt > 70) { p.hornAt = Date.now(); all(room, { t: 'horn', id: p.id, v: true }); }
         break;
       case 'color':   // pick a car colour while waiting in the room; taken colours and Jeff's blue are refused
         if (room && !(room.state === 'race' && p.racing) && !(p.color === BLUE && isJeff(p.name)) && colorFree(room, p, m.n)) p.color = m.n;
