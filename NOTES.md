@@ -134,6 +134,18 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
 - Also fixed: steering used to invert whenever the car was rolling backwards (for example after a bump). It now
   inverts only in reverse gear.
 
+## Changed 2026-11-18, eighth round (steering: "the car is not responding to my steering")
+- After seven rounds of making the wheel gentler, the owner now says the car does not answer his steering and
+  suggests the wheel should turn further than its 100 degree stop. Diagnosis: the earlier fixes for "too
+  responsive" had stacked up (response power 2.2, a 0.1 s lag) until small movements did almost nothing.
+- New defaults: the wheel turns **180 degrees each way** (so the same thumb movement is a smaller share of the
+  lock: finer control), the response curve is **medium** (power 1.4, was 2.2) and the lag is 0.04 s (was 0.1).
+  Measured at speed 150: a 40 px slide turns the car about 38 degrees a second (it was about 10).
+- Because nobody but the owner can feel it, steering feel is now **three settings under OPTIONS**: Wheel turns
+  (100 / 180 / 360 degrees), Steering response (Gentle / Medium / Direct), Wheel springs back (Yes / No).
+  When he reports the combination he likes, make it the default (`setFeel`) and consider removing the settings.
+- The colour button beside the name now shows the car itself in the chosen colour, not a plain square.
+
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
   `test/phone.py` in Chrome at phone size (computer cars complete every track; lights, flags, leader board; a

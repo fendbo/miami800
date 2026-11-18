@@ -22,7 +22,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;background:var(--field);color:var(--ink);font-family:var(--body);overflow:hidden;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
-canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #probe{position:fixed;visibility:hidden;pointer-events:none;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,11,22,.8);
@@ -76,8 +76,8 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
 .link{font-size:11px;color:var(--dim);word-break:break-all;text-align:center;-webkit-user-select:text;user-select:text}
 /* a clean menu: drop-downs instead of rows of buttons */
 .row.nowrap{flex-wrap:nowrap}
-.swbtn{flex:0 0 52px;min-height:44px;background:var(--field);border:2px solid var(--line);padding:7px;cursor:pointer}
-.swbtn i{display:block;width:100%;height:100%;min-height:26px}
+.swbtn{flex:0 0 66px;min-height:44px;background:#000;border:2px solid var(--line);padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.swbtn canvas{position:static;width:66px;height:42px;display:block;image-rendering:pixelated}
 .picks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .picks[hidden]{display:none}
 .pick{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--dim);min-width:0}
@@ -120,7 +120,7 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
     <p class="note" id="menuMsg" hidden></p>
     <div class="row nowrap">
       <input id="name" maxlength="10" placeholder="Your name" autocomplete="off" aria-label="Your name">
-      <button class="swbtn" id="colorBtn" type="button" aria-label="Pick your car color"><i id="colorChip"></i></button>
+      <button class="swbtn" id="colorBtn" type="button" aria-label="Pick your car color"><canvas id="colorChip" width="132" height="84"></canvas></button>
     </div>
     <div id="colorBox" class="col" hidden>
       <div class="sws" id="menuSw"></div>
@@ -153,6 +153,9 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
       <label class="pick"><span>Sound</span><select id="segSound"><option value="on">On</option><option value="fx">No engine</option><option value="off">Off</option></select></label>
       <label class="pick"><span>Direction</span><select id="selRev"><option value="0">Normal</option><option value="1">Reverse</option></select></label>
       <label class="pick"><span>Light</span><select id="selNight"><option value="0">Day</option><option value="1">Night</option></select></label>
+      <label class="pick"><span>Wheel turns</span><select id="selTurn"><option value="100">A little (100&deg;)</option><option value="180">Half a turn (180&deg;)</option><option value="360">A full turn (360&deg;)</option></select></label>
+      <label class="pick"><span>Steering response</span><select id="selResp"><option value="gentle">Gentle</option><option value="medium">Medium</option><option value="direct">Direct</option></select></label>
+      <label class="pick"><span>Wheel springs back</span><select id="selSpring"><option value="1">Yes</option><option value="0">No, it stays</option></select></label>
     </div>
     <p class="small" id="howto"></p>
     <p class="small" id="bestNote"></p>
@@ -207,8 +210,16 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
 var W=1000,H=620;                 // the track's own coordinate space
 var TOP=285;                      // top speed on the road
 var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
-var WHEEL_MAX=1.75;               // the wheel turns 100 degrees each way and stops, like a real one
-var SWIPE=85;                     // how far the thumb slides, in screen pixels, to take the wheel from straight to full lock
+// Steering feel. Three things the player can change under OPTIONS, because only a thumb on a real phone can judge them:
+var WHEEL_MAX=Math.PI;            // how far the wheel turns each way before it stops (100, 180 or 360 degrees; 180 = half a turn)
+var SWIPE=153;                    // thumb slide, in screen pixels, from straight to that stop (0.85 px per degree)
+var RESP=1.4;                     // response curve: 2 = gentle near the middle, 1.4 = medium, 1 = direct
+var SPRING=true;                  // does the wheel spring back to straight when the thumb lifts
+function setFeel(){
+  var deg=+store('wturn')||180,r=store('wresp')||'medium';
+  if(deg!==100&&deg!==360)deg=180;
+  WHEEL_MAX=deg*Math.PI/180;SWIPE=0.85*deg;RESP=r==='gentle'?2:r==='direct'?1:1.4;SPRING=store('wspring')!=='0';
+}
 var PIVOT=80;                     // the imaginary wheel's hub sits this many pixels below where the thumb lands
 var TURN_R=36;                    // tightest turning circle at full lock (radius, in track units)
 var GRIP=380;                     // how hard the tyres can corner: at speed the car runs wide instead of spinning
@@ -304,7 +315,7 @@ function distRoad(x,y){
 }
 
 // ---------------------------------------------------------------- state
-var cv=$('c'),ctx=cv.getContext('2d');
+var cv=$('c'),ctx=cv.getContext('2d');window.__m8ctx=ctx;
 var vw=0,vh=0,dpr=1,portrait=false,sc=1,ox=0,oy=0,padL=null,padR=null,region=null,pauseBtn=null,trackImg=null;
 var mode='menu';                  // menu | race
 var phase='idle';                 // count | go | done
@@ -547,14 +558,14 @@ function physics(now){
         // Like a car: the wheel sets the turning circle, so the car turns in proportion to how fast it is rolling
         // (it cannot pirouette at low speed), and at high speed the tyres limit it, so it runs wide rather than spinning.
         var vv=Math.abs(vfw);if(c.wallT>0)vv=Math.max(vv,45);            // against a barrier it can still swing round
-        // Calm by design: the steering follows the wheel with a slight lag (no jerks), small wheel angles do very little
-        // (power 2.2), and turning hard scrubs speed off by itself so a corner can be taken with the gas still down.
-        c.steerS+=(wx-c.steerS)*Math.min(1,DT/0.1);
-        var sx=Math.abs(c.steerS),wr=vv*Math.pow(sx,2.2)/TURN_R;
+        // The car answers the wheel almost at once (a 0.04 s lag only takes out jitter), along the chosen response curve,
+        // and turning hard scrubs speed off by itself so a corner can be taken with the gas still down.
+        c.steerS+=(wx-c.steerS)*Math.min(1,DT/0.04);
+        var sx=Math.abs(c.steerS),wr=vv*Math.pow(sx,RESP)/TURN_R;
         wr=Math.min(wr,GRIP/Math.max(vv,1),2.8);
         c.h+=(c.steerS<0?-1:1)*wr*DT*(gear<0&&vfw<-4?-1:1);   // only reverse gear steers backwards, never a bump or a slide
         if(sx>0.3){var cap=TOP*(1-0.45*Math.pow((sx-0.3)/0.7,1.2)),spn=Math.hypot(c.vx,c.vy);if(spn>cap){var sf=Math.max(cap/spn,1-1.3*DT);c.vx*=sf;c.vy*=sf}}
-        if(!pointerOn('L'))c.wheel*=Math.exp(-9*DT);                 // hands off: it centres itself
+        if(SPRING&&!pointerOn('L'))c.wheel*=Math.exp(-9*DT);                 // hands off: it centres itself
       }
       else if(steer){var sp=Math.hypot(c.vx,c.vy);c.h+=steer*3.8*DT*clamp(sp/60+0.5,0,1);c.wheel+=(steer*0.9-c.wheel)*0.2}
       else c.wheel*=0.85;
@@ -750,7 +761,8 @@ function drawTrack(g){
   for(i=0;i<10;i++)for(var c2=0;c2<2;c2++)if((i+c2)%2){g.fillStyle='#f4f6fb';g.fillRect(c2*sq-sq,-HALF+i*sq,sq,sq)}
   g.restore();
 }
-function carShape(color,mine){ // drawn pointing right, about 24 long, around 0,0
+function carShape(color,mine,g){ // drawn pointing right, about 24 long, around 0,0 (on the game canvas unless told otherwise)
+  var ctx=g||window.__m8ctx;
   if(mine){ctx.strokeStyle='rgba(238,242,251,.55)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(0,0,15,0,TAU);ctx.stroke()}
   ctx.fillStyle='#aab3c8';
   ctx.fillRect(-9,-7.5,6,3.4);ctx.fillRect(-9,4.1,6,3.4);ctx.fillRect(4,-7,5,3);ctx.fillRect(4,4,5,3);
@@ -888,7 +900,7 @@ function drawPads(now){
     return;
   }
   // wheel
-  if(scheme==='wheel'){ctx.strokeStyle='#56628a';ctx.lineWidth=3;for(var q=-1;q<=1;q+=2){var sa=-Math.PI/2+q*WHEEL_MAX;ctx.beginPath();ctx.moveTo(w.x+Math.cos(sa)*(w.r+2),w.y+Math.sin(sa)*(w.r+2));ctx.lineTo(w.x+Math.cos(sa)*(w.r+9),w.y+Math.sin(sa)*(w.r+9));ctx.stroke()}}
+  if(scheme==='wheel'&&WHEEL_MAX<3){ctx.strokeStyle='#56628a';ctx.lineWidth=3;for(var q=-1;q<=1;q+=2){var sa=-Math.PI/2+q*WHEEL_MAX;ctx.beginPath();ctx.moveTo(w.x+Math.cos(sa)*(w.r+2),w.y+Math.sin(sa)*(w.r+2));ctx.lineTo(w.x+Math.cos(sa)*(w.r+9),w.y+Math.sin(sa)*(w.r+9));ctx.stroke()}}
   if(!wheelImg)wheelImg=makeWheel();
   ctx.save();ctx.translate(w.x,w.y);ctx.rotate(me.wheel);ctx.imageSmoothingEnabled=false;ctx.globalAlpha=on?1:0.8;
   ctx.drawImage(wheelImg,-w.r,-w.r,w.r*2,w.r*2);
@@ -1073,9 +1085,14 @@ function paintSw(el,mine,taken,locked){ // locked: this player is Jeff, who is a
     bs[i].disabled=!on&&(locked||i===BLUE||taken.indexOf(i)>=0);
   }
 }
+function paintChip(){ // the button beside your name shows your car, in your colour
+  var c=$('colorChip'),g=c.getContext('2d');
+  g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,c.width,c.height);g.translate(c.width/2,c.height/2);g.scale(4.6,4.6);
+  carShape(COLORS[myColor()],false,g);
+}
 function paintMenuColor(){
   var j=isJeff($('name').value);
-  paintSw($('menuSw'),myColor(),[],j);$('colorChip').style.background=COLORS[myColor()];
+  paintSw($('menuSw'),myColor(),[],j);paintChip();
   $('colorNote').textContent=j?'Jeff always drives the blue car.':'Blue is saved for Jeff. In a room, colors are first come, first served.';
 }
 var HOW={wheel:'Wheel: put your left thumb down anywhere on the left side and keep it down. Slide it right, or circle it clockwise, to turn the wheel clockwise; slide left or circle counterclockwise to turn it the other way. Hold it there and the car keeps curving. Let go and the wheel springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
@@ -1208,6 +1225,10 @@ var paintLobNight=seg('selLobNight',0,function(v){send({t:'opt',k:'night',v:v===
 var paintLobCpu=seg('selLobCpu',1,function(v){send({t:'opt',k:'cpu',v:v==='1'})});
 var paintLobCup=seg('segLobCup',0,function(v){send({t:'cup',n:+v})});
 seg('segGas',gasMode,function(v){gasMode=v;gasLock=false;store('gas',v);paintHow()});
+setFeel();
+seg('selTurn',Math.round(WHEEL_MAX*180/Math.PI),function(v){store('wturn',v);setFeel()});
+seg('selResp',RESP===2?'gentle':RESP===1?'direct':'medium',function(v){store('wresp',v);setFeel()});
+seg('selSpring',SPRING?1:0,function(v){store('wspring',v);setFeel()});
 seg('segSound',soundMode,function(v){soundMode=v;soundOn=v!=='off';store('sound',v)});
 var paintLobLaps=seg('segLobLaps',5,function(v){send({t:'laps',n:+v})});
 var paintLobTrack=seg('segLobTrack',1,function(v){send({t:'track',n:+v})});
