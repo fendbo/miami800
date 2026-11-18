@@ -98,6 +98,20 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   sliding in a corner as well as under braking, plus the horn. The Sound setting is now On / No engine / Off, because
   on 2026-11-13 the owner had found an engine drone annoying; on 2026-11-17 he asked for engine sounds back.
 
+## Changed 2026-11-17 evening, fifth round
+- **Pause when you are the only person racing.** Practice could always pause; now a room with one person and
+  computer cars pauses too (`solo()`: the host's phone drives the computer cars, so everything stops). In that case
+  the server takes finish times from that phone's own race clock, since a paused race no longer matches the server's.
+  With two or more people the race cannot stop. The pause button is now a visible labelled button.
+- **Steering, third complaint of "way too responsive".** Now: response power 2.2 (a 15 degree wheel turns the car
+  3 to 8 degrees a second; it was about 40), a 0.1 s lag on the steering so thumb jerks are smoothed, grip limit
+  down to 380, and hard steering scrubs speed off by itself (down to 55% of top speed at full lock) so corners can
+  be taken with the gas locked. Measured with the car on a straight: at speed 120 a 50 degree wheel gives 38 deg/s,
+  full lock 155 deg/s. If this is still disliked, stop tuning numbers and change the control (bigger wheel, or Slide).
+- **Menu redesigned** (owner: too much on the screen): name, a colour button that opens the swatches, Track and Laps
+  drop-downs, PRACTICE, the room row, OPTIONS. Steering, gas, sound, direction and light moved to an OPTIONS panel.
+  The room's host settings are drop-downs too. All choices are native `<select>` elements; `seg()` wires them.
+
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
   `test/phone.py` in Chrome at phone size (computer cars complete every track; lights, flags, leader board; a

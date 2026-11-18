@@ -97,6 +97,7 @@ function leave(p) {
   roomInfo(room);
   if (room.state === 'race') checkEnd(room);
 }
+const soloRace = (room) => [...room.players.values()].filter((q) => q.racing).length === 1;
 function stopRace(room) { clearInterval(room.snap); clearTimeout(room.endTimer); room.snap = room.endTimer = null; }
 function start(room) {
   room.state = 'race'; room.startAt = Date.now() + COUNTDOWN_MS;
@@ -190,7 +191,8 @@ wss.on('connection', (ws) => {
             if (!Array.isArray(e) || e.length !== 8 || !e.every(Number.isFinite)) continue;
             const b = room.bots.find((q) => q.id === e[0]); if (!b) continue;
             b.d = e.slice(1, 7);
-            if (e[7] > 0 && !b.fin && Date.now() - room.startAt >= MIN_RACE_MS) b.fin = Date.now() - room.startAt;
+            // with one person in the race the game can be paused, so that phone's own race clock is the one that counts
+            if (e[7] > 0 && !b.fin && Date.now() - room.startAt >= MIN_RACE_MS) b.fin = soloRace(room) && e[7] >= MIN_RACE_MS ? Math.round(e[7]) : Date.now() - room.startAt;
           }
         }
         break;
@@ -219,7 +221,7 @@ wss.on('connection', (ws) => {
         if (room && room.state === 'race' && p.racing && !p.fin && Date.now() - room.startAt >= MIN_RACE_MS) {
           const mine = Date.now() - room.startAt;                 // server's own clock
           const theirs = Number(m.time);                          // the phone's clock, used if it is close
-          p.fin = Math.max(1, Math.round(Number.isFinite(theirs) && Math.abs(theirs - mine) < 1500 ? theirs : mine));
+          p.fin = Math.max(1, Math.round(Number.isFinite(theirs) && (soloRace(room) ? theirs >= MIN_RACE_MS && theirs <= mine + 1500 : Math.abs(theirs - mine) < 1500) ? theirs : mine));
           if (!room.endTimer) room.endTimer = setTimeout(() => endRace(room), GRACE_MS);
           checkEnd(room);
         }

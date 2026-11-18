@@ -71,6 +71,19 @@ ol.list .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
 .codebig{font:400 26px/1 var(--display);letter-spacing:.18em;text-align:center;color:var(--hot);padding-left:.18em}
 .link{font-size:11px;color:var(--dim);word-break:break-all;text-align:center;-webkit-user-select:text;user-select:text}
+/* a clean menu: drop-downs instead of rows of buttons */
+.row.nowrap{flex-wrap:nowrap}
+.swbtn{flex:0 0 52px;min-height:44px;background:var(--field);border:2px solid var(--line);padding:7px;cursor:pointer}
+.swbtn i{display:block;width:100%;height:100%;min-height:26px}
+.picks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.picks[hidden]{display:none}
+.pick{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--dim);min-width:0}
+select{font:600 16px/1.2 var(--body);color:var(--ink);border:2px solid var(--line);border-radius:0;padding:9px 30px 9px 10px;min-height:44px;width:100%;
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  background:var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238a96b3' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 10px center}
+select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+.foot{align-items:center}
+.foot #home{text-align:left}
 #home{color:var(--ink);opacity:.55;font-size:12px;text-decoration:none;text-align:center;padding:4px}
 @media (max-height:430px){
   .panel{max-width:700px;gap:8px;padding:12px}
@@ -94,46 +107,45 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
   <div class="panel">
     <img id="logo" src="icon-192.png" alt="" width="64" height="64" onerror="this.remove()">
     <h1>MIAMI <b>800</b></h1>
-    <div class="stripe" id="stripe"></div>
-    <p class="tag">Up to eight cars, three tracks, the whole race on one screen.</p>
     <p class="note" id="menuMsg" hidden></p>
-    <div class="cols">
-      <div class="col">
-        <input id="name" maxlength="10" placeholder="Your name" autocomplete="off" aria-label="Your name">
-        <button class="b" id="bPractice">PRACTICE<small>You against 7 computer cars</small></button>
-        <div id="onlineBox" class="col" hidden>
-          <div class="row">
-            <button class="b" id="bCreate">NEW ROOM</button>
-            <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" aria-label="Room code">
-            <button class="b ghost" id="bJoin">JOIN</button>
-          </div>
-          <p class="small">NEW ROOM gives you a link to invite up to 7 friends, each on their own phone.</p>
-        </div>
-        <p id="offlineNote" hidden>Racing friends on their own phones turns on once the game is on its own site. This preview is practice only.</p>
-      </div>
-      <div class="col">
-        <div class="set">
-          <span>Track</span>
-          <div class="seg" id="segTrack"><button data-v="0">Training</button><button data-v="1">Classic</button><button data-v="2">Twister</button></div>
-          <span>Extras</span>
-          <div class="seg" id="menuTog"><button data-k="rev">Reverse</button><button data-k="night">Night</button></div>
-          <span>Laps</span>
-          <div class="seg" id="segLaps"><button data-v="3">3</button><button data-v="5">5</button><button data-v="8">8</button></div>
-          <span>Car</span>
-          <div class="sws" id="menuSw"></div>
-          <span>Steering</span>
-          <div class="seg" id="segSteer"><button data-v="wheel">Wheel</button><button data-v="slide">Slide</button><button data-v="buttons">Buttons</button></div>
-          <span>Gas</span>
-          <div class="seg" id="segGas"><button data-v="lock">Tap to lock</button><button data-v="hold">Hold down</button></div>
-          <span>Sound</span>
-          <div class="seg" id="segSound"><button data-v="on">On</button><button data-v="fx">No engine</button><button data-v="off">Off</button></div>
-        </div>
-        <p class="small" id="bestNote"></p>
-        <p class="small" id="colorNote"></p>
-        <p id="howto"></p>
+    <div class="row nowrap">
+      <input id="name" maxlength="10" placeholder="Your name" autocomplete="off" aria-label="Your name">
+      <button class="swbtn" id="colorBtn" type="button" aria-label="Pick your car color"><i id="colorChip"></i></button>
+    </div>
+    <div id="colorBox" class="col" hidden>
+      <div class="sws" id="menuSw"></div>
+      <p class="small" id="colorNote"></p>
+    </div>
+    <div class="picks">
+      <label class="pick"><span>Track</span><select id="segTrack"><option value="0">Training (easy)</option><option value="1">Classic (medium)</option><option value="2">Twister (hard)</option></select></label>
+      <label class="pick"><span>Laps</span><select id="segLaps"><option value="3">3 laps</option><option value="5">5 laps</option><option value="8">8 laps</option></select></label>
+    </div>
+    <button class="b" id="bPractice">PRACTICE<small>You against 7 computer cars</small></button>
+    <div id="onlineBox" class="col" hidden>
+      <div class="row">
+        <button class="b" id="bCreate">NEW ROOM</button>
+        <input id="code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" aria-label="Room code">
+        <button class="b ghost" id="bJoin">JOIN</button>
       </div>
     </div>
-    <a id="home" href="https://lubowcade.com/">&lt; Lubowcade</a>
+    <p id="offlineNote" hidden>Racing friends on their own phones turns on once the game is on its own site. This preview is practice only.</p>
+    <div class="row nowrap foot"><a id="home" href="https://lubowcade.com/">&lt; Lubowcade</a><button class="b ghost" id="bOptions">OPTIONS</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="options" hidden>
+  <div class="panel">
+    <h2>OPTIONS</h2>
+    <div class="picks">
+      <label class="pick"><span>Steering</span><select id="segSteer"><option value="wheel">Wheel</option><option value="slide">Slide</option><option value="buttons">Buttons</option></select></label>
+      <label class="pick"><span>Gas pedal</span><select id="segGas"><option value="lock">Tap to lock</option><option value="hold">Hold down</option></select></label>
+      <label class="pick"><span>Sound</span><select id="segSound"><option value="on">On</option><option value="fx">No engine</option><option value="off">Off</option></select></label>
+      <label class="pick"><span>Direction</span><select id="selRev"><option value="0">Normal</option><option value="1">Reverse</option></select></label>
+      <label class="pick"><span>Light</span><select id="selNight"><option value="0">Day</option><option value="1">Night</option></select></label>
+    </div>
+    <p class="small" id="howto"></p>
+    <p class="small" id="bestNote"></p>
+    <div class="row"><button class="b" id="bOptDone">DONE</button></div>
   </div>
 </div>
 
@@ -146,15 +158,13 @@ ol.list .pos{font:400 10px/1 var(--display);width:34px;color:var(--dim)}
     <div class="link" id="lobLink" hidden></div>
     <ol class="list" id="lobList"></ol>
     <div class="set"><span>Your car</span><div class="sws" id="lobSw"></div></div>
-    <div class="set" id="lobHostRow">
-      <span>Track</span>
-      <div class="seg" id="segLobTrack"><button data-v="0">Training</button><button data-v="1">Classic</button><button data-v="2">Twister</button></div>
-      <span>Laps</span>
-      <div class="seg" id="segLobLaps"><button data-v="3">3</button><button data-v="5">5</button><button data-v="8">8</button></div>
-      <span>Extras</span>
-      <div class="seg" id="lobTog"><button data-k="rev">Reverse</button><button data-k="night">Night</button><button data-k="cpu">CPU cars</button></div>
-      <span>Cup</span>
-      <div class="seg" id="segLobCup"><button data-v="0">Off</button><button data-v="3">3 races</button><button data-v="5">5 races</button></div>
+    <div class="picks" id="lobHostRow">
+      <label class="pick"><span>Track</span><select id="segLobTrack"><option value="0">Training (easy)</option><option value="1">Classic (medium)</option><option value="2">Twister (hard)</option></select></label>
+      <label class="pick"><span>Laps</span><select id="segLobLaps"><option value="3">3 laps</option><option value="5">5 laps</option><option value="8">8 laps</option></select></label>
+      <label class="pick"><span>Computer cars</span><select id="selLobCpu"><option value="1">Fill the grid</option><option value="0">None</option></select></label>
+      <label class="pick"><span>Cup</span><select id="segLobCup"><option value="0">Single races</option><option value="3">Cup of 3 races</option><option value="5">Cup of 5 races</option></select></label>
+      <label class="pick"><span>Direction</span><select id="selLobRev"><option value="0">Normal</option><option value="1">Reverse</option></select></label>
+      <label class="pick"><span>Light</span><select id="selLobNight"><option value="0">Day</option><option value="1">Night</option></select></label>
     </div>
     <p class="small" id="lobRec"></p>
     <p id="lobWait"></p>
@@ -188,7 +198,7 @@ var TOP=285;                      // top speed on the road
 var CAR=1.55;                     // how big cars are drawn (they were 1.2: hard to see on a phone)
 var WHEEL_MAX=1.75;               // the wheel turns 100 degrees each way and stops, like a real one
 var TURN_R=36;                    // tightest turning circle at full lock (radius, in track units)
-var GRIP=520;                     // how hard the tyres can corner: at speed the car runs wide instead of spinning
+var GRIP=380;                     // how hard the tyres can corner: at speed the car runs wide instead of spinning
 // Car colours. Blue (BLUE) is Jeff's: nobody else can pick it. Nine colours, so eight other players still get one each.
 // The palette follows the 1975 cabinet's screen: blue, red, lavender, white, cyan, pale lime, green, violet. Orange is the one extra.
 var COLORS=['#e8392b','#3f8ff5','#d9f09c','#5fd06e','#45d8e6','#7d63f2','#cfb0f0','#f4f6fb','#f0a13c'];
@@ -304,7 +314,7 @@ function makeCar(slot,opt){
     x:PX[i]-TY[i]*lat,y:PY[i]+TX[i]*lat,h:Math.atan2(TY[i],TX[i]),vx:0,vy:0,
     idx:i,s:i-N,fin:0,onRoad:true,offT:0,wrongT:0,skill:1,off:lat,wheel:0,gas:false,brake:false,
     sx:0,sy:0,sh:0,svx:0,svy:0,st:0,popT:0,
-    wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,px:null,py:0};
+    steerS:0,wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,px:null,py:0};
   for(var k in opt)c[k]=opt[k];
   return c;
 }
@@ -514,9 +524,13 @@ function physics(now){
         // Like a car: the wheel sets the turning circle, so the car turns in proportion to how fast it is rolling
         // (it cannot pirouette at low speed), and at high speed the tyres limit it, so it runs wide rather than spinning.
         var vv=Math.abs(vfw);if(c.wallT>0)vv=Math.max(vv,45);            // against a barrier it can still swing round
-        var wr=vv*Math.pow(Math.abs(wx),1.5)/TURN_R;
+        // Calm by design: the steering follows the wheel with a slight lag (no jerks), small wheel angles do very little
+        // (power 2.2), and turning hard scrubs speed off by itself so a corner can be taken with the gas still down.
+        c.steerS+=(wx-c.steerS)*Math.min(1,DT/0.1);
+        var sx=Math.abs(c.steerS),wr=vv*Math.pow(sx,2.2)/TURN_R;
         wr=Math.min(wr,GRIP/Math.max(vv,1),2.8);
-        c.h+=(wx<0?-1:1)*wr*DT*(vfw<-4?-1:1);
+        c.h+=(c.steerS<0?-1:1)*wr*DT*(vfw<-4?-1:1);
+        if(sx>0.3){var cap=TOP*(1-0.45*Math.pow((sx-0.3)/0.7,1.2)),spn=Math.hypot(c.vx,c.vy);if(spn>cap){var sf=Math.max(cap/spn,1-1.3*DT);c.vx*=sf;c.vy*=sf}}
         if(!pointerOn('L'))c.wheel*=Math.exp(-9*DT);                 // hands off: it centres itself
       }
       else if(steer){var sp=Math.hypot(c.vx,c.vy);c.h+=steer*3.8*DT*clamp(sp/60+0.5,0,1);c.wheel+=(steer*0.9-c.wheel)*0.2}
@@ -648,7 +662,7 @@ function layout(){
     region={x:il,y:it,w:vw-il-ir,h:vh-it-ib-ph};
     sc=Math.min(region.w/H,region.h/W);ox=region.x+(region.w-H*sc)/2;oy=region.y+(region.h-W*sc)/2;
   }
-  pauseBtn=portrait?{x:region.x+region.w-44,y:region.y,w:44,h:44}:{x:region.x+region.w/2-22,y:region.y,w:44,h:36};
+  pauseBtn=portrait?{x:region.x+region.w-48,y:region.y+3,w:44,h:40}:{x:region.x+region.w/2-38,y:region.y+3,w:76,h:30};
   // controls
   var bot=padR.y+padR.h-(portrait?12:26),R,gh;
   if(!portrait){
@@ -837,7 +851,7 @@ function drawPads(now){
     text('◀',w.x,w.y,30,on?'#38bdf8':'#2a3964');text('LEFT',w.x,w.y+34,8,'#8a96b3');
     var py=ui.gas.y+ui.gas.h/2;
     text('▶',rx,py,30,pointerOn('R')?'#38bdf8':'#2a3964');text(on&&pointerOn('R')?(bothT>0.35?'REVERSE':'BRAKE'):'RIGHT',rx,py+34,8,on&&pointerOn('R')?'#ff4d4d':'#8a96b3');
-    ctx.fillStyle='rgba(138,150,179,.7)';ctx.fillRect(pauseBtn.x+pauseBtn.w/2-6,pauseBtn.y+10,4,12);ctx.fillRect(pauseBtn.x+pauseBtn.w/2+2,pauseBtn.y+10,4,12);
+    drawPause();
     return;
   }
   // wheel
@@ -855,7 +869,7 @@ function drawPads(now){
   ctx.beginPath();ctx.arc(sx,ky,12,0,TAU);ctx.fillStyle=gear>0?'#38bdf8':'#ff9f43';ctx.fill();
   text('D',lx,s.y+14,12,gear>0?'#38bdf8':'#56628a');text('R',lx,s.y+s.h-12,12,gear<0?'#ff9f43':'#56628a');
   // pause
-  ctx.fillStyle='rgba(138,150,179,.7)';var bx=pauseBtn.x+pauseBtn.w/2,by=pauseBtn.y+16;ctx.fillRect(bx-6,by-6,4,12);ctx.fillRect(bx+2,by-6,4,12);
+  drawPause();
 }
 // The steering wheel, drawn on a coarse grid like the icon: white rim, three spokes, blue hub, red mark at the top.
 var wheelImg=null;
@@ -868,6 +882,12 @@ function makeWheel(){
   }
   return c;
 }
+function drawPause(){
+  var b=pauseBtn,my=b.y+b.h/2,bx=portrait?b.x+b.w/2-5:b.x+12;
+  rr(b.x,b.y,b.w,b.h,6);ctx.fillStyle='rgba(11,17,34,.9)';ctx.fill();ctx.strokeStyle='#3a4a78';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#eef2fb';ctx.fillRect(bx,my-6,4,12);ctx.fillRect(bx+7,my-6,4,12);
+  if(!portrait)text('PAUSE',b.x+b.w/2+10,my+1,6,'#eef2fb');
+}
 function pointerOn(side){for(var id in pointers)if(pointers[id].side===side)return true;return false}
 function toScreen(x,y){return portrait?[ox+(H-y)*sc,oy+x*sc]:[ox+x*sc,oy+y*sc]}
 function render(now){
@@ -879,7 +899,7 @@ function render(now){
   ctx.imageSmoothingEnabled=true;ctx.drawImage(trackImg,0,0,W,H);
   var i,c;
   if(mode==='race'){
-    if(!paused||online)layMarks();
+    if(!(paused&&solo()))layMarks();
     ctx.drawImage(skid,0,0,W,H);
     drawOil(now);
     // the ghost of your best lap (practice)
@@ -930,7 +950,7 @@ function frame(now){
   requestAnimationFrame(frame);
   if(!trackImg)return;
   var dt=Math.min(0.1,(now-lastT)/1000);lastT=now;frameDt=dt;
-  if(!paused||online){
+  if(!(paused&&solo())){
     if(mode==='race'&&phase!=='count'){
       // oil moves every 10 seconds; every phone works out the same spots from the race's seed
       var ep=Math.floor((now-raceStart)/10000);
@@ -961,21 +981,24 @@ function frame(now){
 }
 
 // ---------------------------------------------------------------- screens
-function hideAll(){['menu','lobby','results','pause'].forEach(function(id){$(id).hidden=true})}
+function hideAll(){['menu','options','lobby','results','pause'].forEach(function(id){$(id).hidden=true})}
 function toMenu(note){
   hideAll();$('menu').hidden=false;
   $('menuMsg').hidden=!note;$('menuMsg').textContent=note||'';
-  setTrack(track,optRev);paintTrackSeg(track);paintMenuTog({rev:optRev,night:optNight});paintMenuColor();paintBest();
+  setTrack(track,optRev);paintTrackSeg(track);paintRev(optRev?1:0);paintNight(optNight?1:0);paintMenuColor();paintBest();
   attract();
 }
+// A race can really stop only when nobody else is in it: practice, or a room where you are the only person
+// (the computer cars are driven by your own phone, so they stop with you).
+function solo(){return !online||net.players.filter(function(p){return p.racing}).length<=1}
 function openPause(){
   if(mode!=='race')return;
   paused=true;pauseAt=performance.now();pointers={};
-  $('pauseTitle').textContent=online?'THE RACE IS STILL RUNNING':'PAUSED';
+  $('pauseTitle').textContent=solo()?'PAUSED':'THE RACE IS STILL RUNNING';
   $('pause').hidden=false;
 }
 function closePause(){
-  if(!online)raceStart+=performance.now()-pauseAt;
+  if(solo())raceStart+=performance.now()-pauseAt;
   paused=false;lastT=performance.now();$('pause').hidden=true;audioInit();
 }
 function listItem(pos,color,name,right,mine){
@@ -995,17 +1018,11 @@ function showPracticeResults(){
   $('resWait').hidden=true;$('bAgain').hidden=false;$('bAgain').textContent='RACE AGAIN';$('bResMenu').textContent='MENU';
   $('results').hidden=false;
 }
-function seg(id,value,onpick){
-  var el=$(id),bs=el.querySelectorAll('button');
-  function paint(v){for(var i=0;i<bs.length;i++)bs[i].setAttribute('aria-pressed',String(bs[i].dataset.v===String(v)))}
-  el.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;paint(b.dataset.v);onpick(b.dataset.v)});
+function seg(id,value,onpick){ // a drop-down: tells onpick the chosen value, and returns a function that sets it
+  var el=$(id);
+  el.addEventListener('change',function(){onpick(el.value)});
+  function paint(v){el.value=String(v)}
   paint(value);return paint;
-}
-// on/off switches that sit in a row like a seg, each on its own
-function togs(id,onflip){
-  var el=$(id),bs=el.querySelectorAll('button');
-  el.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;onflip(b.dataset.k,b.getAttribute('aria-pressed')!=='true')});
-  return function(state){for(var i=0;i<bs.length;i++)bs[i].setAttribute('aria-pressed',String(!!state[bs[i].dataset.k]))};
 }
 function paintBest(){
   var b=+store('best.'+trackKey())||0,T=TRACKS[track];
@@ -1025,8 +1042,8 @@ function paintSw(el,mine,taken,locked){ // locked: this player is Jeff, who is a
 }
 function paintMenuColor(){
   var j=isJeff($('name').value);
-  paintSw($('menuSw'),myColor(),[],j);
-  $('colorNote').textContent=j?'Jeff always drives the blue car.':'Pick your car. Blue is saved for Jeff. In a room, colors are first come, first served.';
+  paintSw($('menuSw'),myColor(),[],j);$('colorChip').style.background=COLORS[myColor()];
+  $('colorNote').textContent=j?'Jeff always drives the blue car.':'Blue is saved for Jeff. In a room, colors are first come, first served.';
 }
 var HOW={wheel:'Wheel: put your left thumb on the wheel and turn it, like a real steering wheel. Hold it turned and the car keeps curving; small turns are gentle, and the further you turn it, the tighter the curve. Let go and it springs back to straight. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
   slide:'Slide: hold your left thumb down and slide it left or right; let go to straighten. Right thumb: tall pedal is gas, wide pedal is brake. Tap the shifter for D or R.',
@@ -1124,7 +1141,7 @@ function netFrame(now,dt){
   if(me&&now-lastSend>66&&phase!=='count'){lastSend=now;
     send({t:'s',d:[Math.round(me.x*10)/10,Math.round(me.y*10)/10,Math.round(me.h*100)/100,Math.round(me.vx),Math.round(me.vy),Math.round(me.s)]});
     var bots=[];
-    for(i=0;i<cars.length;i++){c=cars[i];if(c.cpu&&c.id<0)bots.push([c.id,Math.round(c.x*10)/10,Math.round(c.y*10)/10,Math.round(c.h*100)/100,Math.round(c.vx),Math.round(c.vy),Math.round(c.s),c.fin?1:0])}
+    for(i=0;i<cars.length;i++){c=cars[i];if(c.cpu&&c.id<0)bots.push([c.id,Math.round(c.x*10)/10,Math.round(c.y*10)/10,Math.round(c.h*100)/100,Math.round(c.vx),Math.round(c.vy),Math.round(c.s),Math.round(c.fin)||0])}
     if(bots.length)send({t:'b',d:bots})}
 }
 function showLobby(){
@@ -1136,7 +1153,7 @@ function showLobby(){
     if(p.id===net.you)mine=p;else taken.push(p.color);
     L.appendChild(listItem('',COLORS[p.color],p.name+(p.id===net.you?' (you)':''),(p.id===net.host?'HOST':'')+(net.cup?' '+p.pts+' PTS':''),p.id===net.you))});
   if(mine)paintSw($('lobSw'),mine.color,taken,mine.color===BLUE&&isJeff(mine.name));
-  paintLobLaps(net.laps);paintLobTrack(net.track);paintLobTog(net);paintLobCup(net.cup);
+  paintLobLaps(net.laps);paintLobTrack(net.track);paintLobRev(net.rev?1:0);paintLobNight(net.night?1:0);paintLobCpu(net.cpu?1:0);paintLobCup(net.cup);
   $('lobRec').textContent=net.rec?'Lap record here: '+fmtTime(net.rec.ms)+' by '+net.rec.name+'.':'';
   $('lobHostRow').hidden=!host||racing;
   $('bStart').hidden=!host||racing;
@@ -1151,21 +1168,23 @@ function showLobby(){
 seg('segSteer',scheme,function(v){scheme=v;store('steer2',v);paintHow()});
 var paintLaps=seg('segLaps',laps,function(v){laps=+v;store('laps',v)});
 var paintTrackSeg=seg('segTrack',1,function(v){setTrack(v,optRev);store('track',v);paintBest();attract()});
-var paintMenuTog=togs('menuTog',function(k,v){
-  if(k==='rev'){optRev=v;store('rev',v?'1':'0');setTrack(track,optRev);paintBest();attract()}else{optNight=v;store('night',v?'1':'0')}
-  paintMenuTog({rev:optRev,night:optNight});
-});
-var paintLobTog=togs('lobTog',function(k,v){send({t:'opt',k:k,v:v})});
+var paintRev=seg('selRev',optRev?1:0,function(v){optRev=v==='1';store('rev',v);setTrack(track,optRev);paintBest();attract()});
+var paintNight=seg('selNight',optNight?1:0,function(v){optNight=v==='1';store('night',v)});
+var paintLobRev=seg('selLobRev',0,function(v){send({t:'opt',k:'rev',v:v==='1'})});
+var paintLobNight=seg('selLobNight',0,function(v){send({t:'opt',k:'night',v:v==='1'})});
+var paintLobCpu=seg('selLobCpu',1,function(v){send({t:'opt',k:'cpu',v:v==='1'})});
 var paintLobCup=seg('segLobCup',0,function(v){send({t:'cup',n:+v})});
 seg('segGas',gasMode,function(v){gasMode=v;gasLock=false;store('gas',v);paintHow()});
 seg('segSound',soundMode,function(v){soundMode=v;soundOn=v!=='off';store('sound',v)});
 var paintLobLaps=seg('segLobLaps',5,function(v){send({t:'laps',n:+v})});
 var paintLobTrack=seg('segLobTrack',1,function(v){send({t:'track',n:+v})});
-buildSw($('menuSw'),function(c){store('color',c);paintMenuColor()});
+buildSw($('menuSw'),function(c){store('color',c);paintMenuColor();$('colorBox').hidden=true});
+$('colorBtn').onclick=function(){$('colorBox').hidden=!$('colorBox').hidden};
+$('bOptions').onclick=function(){$('menu').hidden=true;$('options').hidden=false};
+$('bOptDone').onclick=function(){$('options').hidden=true;$('menu').hidden=false};
 buildSw($('lobSw'),function(c){store('color',c);send({t:'color',n:c})});
 $('name').addEventListener('input',paintMenuColor);
 paintHow();
-COLORS.forEach(function(c){var i=document.createElement('i');i.style.background=c;$('stripe').appendChild(i)});
 
 $('bPractice').onclick=function(){audioInit();startPractice()};
 $('bResume').onclick=closePause;
@@ -1187,10 +1206,10 @@ $('bCopy').onclick=function(){
 
 // ---------------------------------------------------------------- start up
 window.addEventListener('resize',layout);window.addEventListener('orientationchange',function(){setTimeout(layout,250)});
-document.addEventListener('visibilitychange',function(){if(document.hidden)engine(0,false,false);if(document.hidden&&mode==='race'&&!online&&!paused&&phase==='go')openPause()});
+document.addEventListener('visibilitychange',function(){if(document.hidden)engine(0,false,false);if(document.hidden&&mode==='race'&&solo()&&!paused&&phase==='go')openPause()});
 try{$('name').value=store('name')||''}catch(e){}
 var t0=parseInt(store('track'),10);setTrack(t0>=0?t0:0,optRev);
-paintTrackSeg(track);paintMenuTog({rev:optRev,night:optNight});paintMenuColor();paintBest();
+paintTrackSeg(track);paintRev(optRev?1:0);paintNight(optNight?1:0);paintMenuColor();paintBest();
 layout();attract();requestAnimationFrame(function(t){lastT=t;frame(t)});
 if(document.fonts&&document.fonts.load)document.fonts.load('12px "Press Start 2P"').catch(function(){});
 // Rooms need this game's own server. Ask it; a preview page has none and stays practice only.
