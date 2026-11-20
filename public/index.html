@@ -153,6 +153,7 @@ select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
       <label class="pick"><span>Sound</span><select id="segSound"><option value="on">On</option><option value="fx">No engine</option><option value="off">Off</option></select></label>
       <label class="pick"><span>Direction</span><select id="selRev"><option value="0">Normal</option><option value="1">Reverse</option></select></label>
       <label class="pick"><span>Light</span><select id="selNight"><option value="0">Day</option><option value="1">Night</option></select></label>
+      <label class="pick"><span>View (test)</span><select id="selView"><option value="top">From above</option><option value="chase">Behind the car</option></select></label>
       <label class="pick"><span>Wheel turns</span><select id="selTurn"><option value="100">A little (100&deg;)</option><option value="180">Half a turn (180&deg;)</option><option value="360">A full turn (360&deg;)</option></select></label>
       <label class="pick"><span>Steering response</span><select id="selResp"><option value="gentle">Gentle</option><option value="medium">Medium</option><option value="direct">Direct</option></select></label>
       <label class="pick"><span>Wheel springs back</span><select id="selSpring"><option value="1">Yes</option><option value="0">No, it stays</option></select></label>
@@ -253,6 +254,8 @@ var TRACKS=[
         [340,400],[322,480],[280,538],[210,562],[130,540],[95,470],[125,385]]}
 ];
 var track=-1,trackRev=false;     // which track, and whether it is being driven the other way round
+var DOTS=[];                      // where the track's edge dots are (x,y pairs), filled in when the track is drawn
+var view=store('view')==='chase'?'chase':'top';   // top: the whole track from above. chase: a test view from behind and above your car
 var PADS=[];                      // boost pads: {i: index along the road, side: -1 or 1}
 function rng(seed){seed=seed>>>0;return function(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}}
 function trackKey(){return track+(trackRev?'r':'')}
@@ -734,7 +737,7 @@ function paintTrack(){ // draw the track once at screen resolution, and a clear 
 
 function drawTrack(g){
   // The 1970s arcade look: a black screen, and the road is only two rows of small, soft white dots, one down each edge.
-  var i,k,side;
+  var i,k,side;DOTS=[];
   g.fillStyle='#000';g.fillRect(0,0,W,H);
   for(side=-1;side<=1;side+=2){
     var off=side*(HALF+3),run=0,n=0,lx=PX[0]-TY[0]*off,ly=PY[0]+TX[0]*off;
@@ -742,7 +745,7 @@ function drawTrack(g){
       var j=i%N,x=PX[j]-TY[j]*off,y=PY[j]+TX[j]*off,seg=Math.hypot(x-lx,y-ly);
       while(seg>0&&run+seg>=12){
         var f=(12-run)/seg;lx+=(x-lx)*f;ly+=(y-ly)*f;seg=Math.hypot(x-lx,y-ly);run=0;
-        if(distRoad(lx,ly)>=HALF){g.fillStyle='#b9c0cf';g.fillRect(Math.round(lx)-1.5,Math.round(ly)-1.5,3,3)}   // skip dots that fold into the road on tight bends
+        if(distRoad(lx,ly)>=HALF){g.fillStyle='#b9c0cf';g.fillRect(Math.round(lx)-1.5,Math.round(ly)-1.5,3,3);DOTS.push(lx,ly)}   // skip dots that fold into the road on tight bends
         n++;
       }
       run+=seg;lx=x;ly=y;
@@ -935,14 +938,65 @@ function drawPause(){
 }
 function pointerOn(side){for(var id in pointers)if(pointers[id].side===side)return true;return false}
 function toScreen(x,y){return portrait?[ox+(H-y)*sc,oy+x*sc]:[ox+x*sc,oy+y*sc]}
+// TEST VIEW: from behind and above your own car, looking the way it is pointing, in perspective.
+// The road ahead always runs up the screen, so steering right always moves you right on the screen.
+// It draws the same track dots, pads, oil and cars; no skid marks, night or leader board. A small map sits in the corner.
+function renderChase(now){
+  var R=region,cx=R.x+R.w/2,hor=R.y+R.h*0.2,F=1.03*Math.min(R.h,R.w*0.75),D=160,HC=90,SQ=HC/D;
+  var ch=Math.cos(me.h),sh=Math.sin(me.h),i,k,q;
+  function proj(x,y){ // world point on the ground -> [screen x, screen y, scale], or null when it is behind the camera
+    var dx=x-me.x,dy=y-me.y,f=dx*ch+dy*sh+D,r=-dx*sh+dy*ch;
+    if(f<14)return null;
+    var sc2=F/f;return [cx+r*sc2,hor+HC*sc2,sc2];
+  }
+  function quad(pts,fill){var a=[];for(var n=0;n<pts.length;n++){var t=proj(pts[n][0],pts[n][1]);if(!t)return;a.push(t)}
+    ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(a[0][0],a[0][1]);for(n=1;n<a.length;n++)ctx.lineTo(a[n][0],a[n][1]);ctx.closePath();ctx.fill()}
+  ctx.save();ctx.beginPath();ctx.rect(R.x,R.y,R.w,R.h);ctx.clip();
+  ctx.fillStyle='#05070d';ctx.fillRect(R.x,R.y,R.w,hor-R.y);                       // sky, a shade off black
+  ctx.fillStyle='#1e2a48';ctx.fillRect(R.x,hor,R.w,1);                             // horizon
+  // track edge dots: bigger and brighter the nearer they are
+  for(i=0;i<DOTS.length;i+=2){
+    q=proj(DOTS[i],DOTS[i+1]);if(!q||q[2]<0.22||q[0]<R.x-20||q[0]>R.x+R.w+20)continue;
+    var w=Math.max(1.5,3.2*q[2]),h=Math.max(1,w*SQ*q[2]/1.2);
+    ctx.globalAlpha=clamp(q[2]*1.6,0.25,1);ctx.fillStyle='#b9c0cf';ctx.fillRect(q[0]-w/2,q[1]-h/2,w,h);
+  }
+  ctx.globalAlpha=1;
+  // start line
+  for(i=0;i<10;i++){var a0=-HALF+i*HALF/5,a1=a0+HALF/5,tx=TX[0],ty=TY[0],px=PX[0],py=PY[0];
+    if(i%2===0)quad([[px-ty*a0-tx*4,py+tx*a0-ty*4],[px-ty*a1-tx*4,py+tx*a1-ty*4],[px-ty*a1+tx*4,py+tx*a1+ty*4],[px-ty*a0+tx*4,py+tx*a0+ty*4]],'#f4f6fb')}
+  // boost pads
+  for(k=0;k<PADS.length;k++)for(i=0;i<6;i++){
+    var pi=wrap(PADS[k].i+i),lat=PADS[k].side*WALL*0.5,hw=WALL*0.5,ux=TX[pi],uy=TY[pi],mx0=PX[pi]-uy*lat,my0=PY[pi]+ux*lat;
+    quad([[mx0-uy*-hw-ux*3,my0+ux*-hw-uy*3],[mx0-uy*hw-ux*3,my0+ux*hw-uy*3],[mx0-uy*hw+ux*2,my0+ux*hw+uy*2],[mx0-uy*-hw+ux*2,my0+ux*-hw+uy*2]],i%2?'#ff9f43':'#ffd23f');
+  }
+  // oil
+  for(k=0;k<oil.length;k++){q=proj(oil[k].x,oil[k].y);if(!q)continue;
+    ctx.fillStyle='#241640';ctx.strokeStyle='#a98bff';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(q[0],q[1],14*q[2],14*q[2]*SQ*q[2]/1.2+1,0,0,TAU);ctx.fill();ctx.stroke()}
+  // cars, far ones first
+  var list=[];
+  for(i=0;i<cars.length;i++){c=cars[i];if(c.fin)continue;q=proj(c.x,c.y);if(q&&q[2]>0.2)list.push([q,c])}
+  list.sort(function(a,b){return a[0][2]-b[0][2]});
+  for(i=0;i<list.length;i++){
+    var c=list[i][1];q=list[i][0];
+    ctx.save();ctx.translate(q[0],q[1]);ctx.scale(q[2],q[2]*0.62);ctx.rotate(c.h-me.h-Math.PI/2);ctx.scale(CAR,CAR);
+    carShape(c.color,false);ctx.restore();
+  }
+  ctx.restore();
+  // a small map of the whole track, so you still know where you are
+  var mw=Math.min(150,R.w*0.3),mh=mw*H/W,mx=R.x+R.w-mw-6,my=R.y+R.h-mh-6;
+  ctx.globalAlpha=0.9;ctx.drawImage(trackImg,mx,my,mw,mh);ctx.globalAlpha=1;ctx.strokeStyle='#1e2a48';ctx.lineWidth=1;ctx.strokeRect(mx,my,mw,mh);
+  for(i=0;i<cars.length;i++){c=cars[i];if(c.fin)continue;ctx.fillStyle=c.color;var rr2=c===me?3.5:2.5;ctx.fillRect(mx+c.x/W*mw-rr2,my+c.y/H*mh-rr2,rr2*2,rr2*2)}
+}
 function render(now){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle='#000';ctx.fillRect(0,0,vw,vh);
+  var i,c,chase=view==='chase'&&mode==='race'&&!!me;
+  if(chase)renderChase(now);
+  else{
   ctx.save();
   if(portrait){ctx.translate(ox+H*sc,oy);ctx.rotate(Math.PI/2)}else ctx.translate(ox,oy);
   ctx.scale(sc,sc);
   ctx.imageSmoothingEnabled=true;ctx.drawImage(trackImg,0,0,W,H);
-  var i,c;
   if(mode==='race'){
     if(!(paused&&solo()))layMarks();
     ctx.drawImage(skid,0,0,W,H);
@@ -962,14 +1016,15 @@ function render(now){
   }
   if(night&&mode==='race')drawNight();
   ctx.restore();
+  }
   if(mode!=='race')return;
-  drawBoard(now);
+  if(!chase)drawBoard(now);
   drawPads(now);
   var mx=region.x+region.w/2,my=region.y+region.h/2,p,since=now-raceStart;
   if(phase==='count'){
     var left=-since/1000;
     drawLights(mx,my,left>3?0:left>1.5?1:2);
-    p=toScreen(me.x,me.y);textO('YOU',p[0],p[1]-28,8,'#eef2fb');
+    if(!chase){p=toScreen(me.x,me.y);textO('YOU',p[0],p[1]-28,8,'#eef2fb')}
     textO(scheme==='wheel'?'LEFT THUMB: SLIDE OR CIRCLE TO STEER':scheme==='slide'?'LEFT THUMB: HOLD AND SLIDE':'HOLD A SIDE TO TURN',mx,my+46,portrait?7:8,'#eef2fb');
     textO(scheme==='buttons'?'BOTH THUMBS = BRAKE':gasMode==='lock'?'TAP GAS ONCE: IT STAYS ON':'RIGHT THUMB: GAS AND BRAKE',mx,my+64,portrait?7:8,'#eef2fb');
   }else if(since<1600&&phase==='go'){
@@ -1229,6 +1284,7 @@ setFeel();
 seg('selTurn',Math.round(WHEEL_MAX*180/Math.PI),function(v){store('wturn',v);setFeel()});
 seg('selResp',RESP===2?'gentle':RESP===1?'direct':'medium',function(v){store('wresp',v);setFeel()});
 seg('selSpring',SPRING?1:0,function(v){store('wspring',v);setFeel()});
+seg('selView',view,function(v){view=v;store('view',v)});
 seg('segSound',soundMode,function(v){soundMode=v;soundOn=v!=='off';store('sound',v)});
 var paintLobLaps=seg('segLobLaps',5,function(v){send({t:'laps',n:+v})});
 var paintLobTrack=seg('segLobTrack',1,function(v){send({t:'track',n:+v})});
@@ -1277,7 +1333,7 @@ fetch('health',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).
 window.__m8={get cars(){return cars},get me(){return me},get phase(){return phase},get mode(){return mode},get N(){return N},
   set autopilot(v){autopilot=v},startPractice:startPractice,get laps(){return laps},set laps(v){laps=v},get ui(){return ui},get gear(){return gear},
   get track(){return track},setTrack:function(k,r){setTrack(k,r);attract()},get board(){return board},get net(){return net},
-  set night(v){optNight=v},get gasLock(){return gasLock},get oil(){return oil},get pads(){return PADS},get best(){return bestLap},get ghost(){return ghost},horn:horn};
+  set night(v){optNight=v},set view(v){view=v},get gasLock(){return gasLock},get oil(){return oil},get pads(){return PADS},get best(){return bestLap},get ghost(){return ghost},horn:horn};
 })();
 </script>
 </body>

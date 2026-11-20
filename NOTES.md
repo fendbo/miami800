@@ -146,6 +146,14 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   When he reports the combination he likes, make it the default (`setFeel`) and consider removing the settings.
 - The colour button beside the name now shows the car itself in the chosen colour, not a plain square.
 
+## Added 2026-11-20: a test view from behind the car
+- The owner suspects the overhead view itself is why steering feels wrong (the car can be pointing any way on the
+  screen), and asked, "just for testing purposes", for a third-person view floating behind the car.
+- OPTIONS > View (test): "From above" (default) or "Behind the car". `renderChase` draws the same track dots, start
+  line, boost pads, oil and cars in perspective from behind and above your car, with a small map in the corner.
+  It leaves out skid marks, night, the ghost and the leader board. It only changes the picture on that phone.
+- This is an experiment. Depending on his verdict: remove it, or finish it properly (leader board, night, ghost).
+
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
   `test/phone.py` in Chrome at phone size (computer cars complete every track; lights, flags, leader board; a
