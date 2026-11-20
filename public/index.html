@@ -254,6 +254,7 @@ var TRACKS=[
         [340,400],[322,480],[280,538],[210,562],[130,540],[95,470],[125,385]]}
 ];
 var track=-1,trackRev=false;     // which track, and whether it is being driven the other way round
+var chaseH=null;                  // which way the behind-the-car camera is looking
 var DOTS=[];                      // where the track's edge dots are (x,y pairs), filled in when the track is drawn
 var view=store('view')==='chase'?'chase':'top';   // top: the whole track from above. chase: a test view from behind and above your car
 var PADS=[];                      // boost pads: {i: index along the road, side: -1 or 1}
@@ -341,7 +342,7 @@ function makeCar(slot,opt){
     x:PX[i]-TY[i]*lat,y:PY[i]+TX[i]*lat,h:Math.atan2(TY[i],TX[i]),vx:0,vy:0,
     idx:i,s:i-N,fin:0,onRoad:true,offT:0,wrongT:0,skill:1,off:lat,wheel:0,gas:false,brake:false,
     sx:0,sy:0,sh:0,svx:0,svy:0,st:0,popT:0,
-    steerS:0,wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,hornOn:false,px:null,py:0};
+    steerS:0,wallT:0,boostT:0,draft:0,slipT:0,spin:0,oilCd:0,lapN:0,lapStart:0,hornT:0,hornOn:false,wAng:0,ph0:null,px:null,py:0};
   for(var k in opt)c[k]=opt[k];
   return c;
 }
@@ -371,7 +372,7 @@ function startPractice(){
 }
 function beginRace(at){
   mode='race';phase='count';raceStart=at;paused=false;finalLapShown=false;resultsShown=false;msg='';lightStep=0;board=[];
-  oil=[];oilEp=-1;bestLap=0;lastLap=0;curLap=[];recTick=0;parts=[];if(skidG)skidG.clearRect(0,0,W,H);
+  chaseH=null;oil=[];oilEp=-1;bestLap=0;lastLap=0;curLap=[];recTick=0;parts=[];if(skidG)skidG.clearRect(0,0,W,H);
   horn(false);pointers={};pendingTurn=0;steer=0;gear=1;bothT=0;wasGas=false;wasBrake=false;gasLock=false;
   hideAll();audioInit();
 }
@@ -764,11 +765,13 @@ function drawTrack(g){
   for(i=0;i<10;i++)for(var c2=0;c2<2;c2++)if((i+c2)%2){g.fillStyle='#f4f6fb';g.fillRect(c2*sq-sq,-HALF+i*sq,sq,sq)}
   g.restore();
 }
-function carShape(color,mine,g){ // drawn pointing right, about 24 long, around 0,0 (on the game canvas unless told otherwise)
+function carShape(color,mine,g,wa){ // drawn pointing right, about 24 long, around 0,0 (on the game canvas unless told otherwise). wa: how far the front wheels are turned
   var ctx=g||window.__m8ctx;
   if(mine){ctx.strokeStyle='rgba(238,242,251,.55)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(0,0,15,0,TAU);ctx.stroke()}
   ctx.fillStyle='#aab3c8';
-  ctx.fillRect(-9,-7.5,6,3.4);ctx.fillRect(-9,4.1,6,3.4);ctx.fillRect(4,-7,5,3);ctx.fillRect(4,4,5,3);
+  ctx.fillRect(-9,-7.5,6,3.4);ctx.fillRect(-9,4.1,6,3.4);
+  if(wa){for(var fw=-1;fw<=1;fw+=2){ctx.save();ctx.translate(6.5,5.5*fw);ctx.rotate(wa);ctx.fillRect(-2.7,-1.6,5.4,3.2);ctx.restore()}}   // front tyres, turned with the steering
+  else{ctx.fillRect(4,-7,5,3);ctx.fillRect(4,4,5,3)}
   ctx.fillStyle=color;
   ctx.fillRect(-10,-3.6,17,7.2);ctx.fillRect(7,-2.2,5,4.4);ctx.fillRect(-12,-6,2.6,12);ctx.fillRect(10.5,-5,1.8,10);
   ctx.fillStyle='#070b16';ctx.fillRect(-3,-2.2,5,4.4);
@@ -777,7 +780,7 @@ function drawCar(c,mine,now){
   ctx.save();ctx.translate(c.x,c.y);ctx.rotate(c.h);ctx.scale(CAR,CAR);
   if(c.boostT>0){ctx.fillStyle=Math.random()<0.5?'#ffd23f':'#ff9f43';ctx.beginPath();ctx.moveTo(-12,-3);ctx.lineTo(-19-Math.random()*6,0);ctx.lineTo(-12,3);ctx.closePath();ctx.fill()}
   if(c.draft>0.3){ctx.strokeStyle='rgba(238,242,251,'+(0.5*c.draft)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-14,-6);ctx.lineTo(-27,-6);ctx.moveTo(-15,0);ctx.lineTo(-31,0);ctx.moveTo(-14,6);ctx.lineTo(-27,6);ctx.stroke()}
-  carShape(c.color,mine);
+  carShape(c.color,mine,null,c.wAng);
   if(c.hornOn)c.hornT=now-((now/3)%150);
   if(now-c.hornT<450&&c.hornT){ // honk: two arcs out of the nose
     var k=(now-c.hornT)/450;ctx.strokeStyle='rgba(255,210,63,'+(1-k)+')';ctx.lineWidth=1.6;
@@ -943,7 +946,11 @@ function toScreen(x,y){return portrait?[ox+(H-y)*sc,oy+x*sc]:[ox+x*sc,oy+y*sc]}
 // It draws the same track dots, pads, oil and cars; no skid marks, night or leader board. A small map sits in the corner.
 function renderChase(now){
   var R=region,cx=R.x+R.w/2,hor=R.y+R.h*0.2,F=1.03*Math.min(R.h,R.w*0.75),D=160,HC=90,SQ=HC/D;
-  var ch=Math.cos(me.h),sh=Math.sin(me.h),i,k,q;
+  // The camera does not turn with the car instantly: it swings round behind it over about a third of a second
+  // (never more than 35 degrees behind). So when you steer, you see your own car turn first, then the view follows.
+  if(chaseH===null)chaseH=me.h;
+  var lagA=clamp(angDiff(me.h,chaseH),-0.6,0.6);lagA-=lagA*Math.min(1,frameDt*3.2);chaseH=me.h-lagA;
+  var ch=Math.cos(chaseH),sh=Math.sin(chaseH),i,k,q;
   function proj(x,y){ // world point on the ground -> [screen x, screen y, scale], or null when it is behind the camera
     var dx=x-me.x,dy=y-me.y,f=dx*ch+dy*sh+D,r=-dx*sh+dy*ch;
     if(f<14)return null;
@@ -978,8 +985,8 @@ function renderChase(now){
   list.sort(function(a,b){return a[0][2]-b[0][2]});
   for(i=0;i<list.length;i++){
     var c=list[i][1];q=list[i][0];
-    ctx.save();ctx.translate(q[0],q[1]);ctx.scale(q[2],q[2]*0.62);ctx.rotate(c.h-me.h-Math.PI/2);ctx.scale(CAR,CAR);
-    carShape(c.color,false);ctx.restore();
+    ctx.save();ctx.translate(q[0],q[1]);ctx.scale(q[2],q[2]*0.62);ctx.rotate(c.h-chaseH-Math.PI/2);ctx.scale(CAR,CAR);
+    carShape(c.color,false,null,c.wAng);ctx.restore();
   }
   ctx.restore();
   // a small map of the whole track, so you still know where you are
@@ -987,7 +994,16 @@ function renderChase(now){
   ctx.globalAlpha=0.9;ctx.drawImage(trackImg,mx,my,mw,mh);ctx.globalAlpha=1;ctx.strokeStyle='#1e2a48';ctx.lineWidth=1;ctx.strokeRect(mx,my,mw,mh);
   for(i=0;i<cars.length;i++){c=cars[i];if(c.fin)continue;ctx.fillStyle=c.color;var rr2=c===me?3.5:2.5;ctx.fillRect(mx+c.x/W*mw-rr2,my+c.y/H*mh-rr2,rr2*2,rr2*2)}
 }
+function wheelAngles(){
+  var dt=Math.max(frameDt,0.004);
+  for(var i=0;i<cars.length;i++){
+    var c=cars[i],t=clamp((c.ph0===null?0:angDiff(c.h,c.ph0))/dt*0.22,-0.55,0.55);c.ph0=c.h;
+    if(c===me&&!autopilot&&!c.fin)t=scheme==='wheel'?clamp(c.steerS*0.75,-0.6,0.6):steer*0.5;
+    c.wAng+=(t-c.wAng)*Math.min(1,dt*12);
+  }
+}
 function render(now){
+  wheelAngles();
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle='#000';ctx.fillRect(0,0,vw,vh);
   var i,c,chase=view==='chase'&&mode==='race'&&!!me;
@@ -1333,7 +1349,7 @@ fetch('health',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).
 window.__m8={get cars(){return cars},get me(){return me},get phase(){return phase},get mode(){return mode},get N(){return N},
   set autopilot(v){autopilot=v},startPractice:startPractice,get laps(){return laps},set laps(v){laps=v},get ui(){return ui},get gear(){return gear},
   get track(){return track},setTrack:function(k,r){setTrack(k,r);attract()},get board(){return board},get net(){return net},
-  set night(v){optNight=v},set view(v){view=v},get gasLock(){return gasLock},get oil(){return oil},get pads(){return PADS},get best(){return bestLap},get ghost(){return ghost},horn:horn};
+  set night(v){optNight=v},set view(v){view=v},get chaseH(){return chaseH},get gasLock(){return gasLock},get oil(){return oil},get pads(){return PADS},get best(){return bestLap},get ghost(){return ghost},horn:horn};
 })();
 </script>
 </body>

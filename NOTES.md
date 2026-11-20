@@ -153,6 +153,10 @@ eight-player overhead racing cabinet, with its own name and art. Called "Circuit
   line, boost pads, oil and cars in perspective from behind and above your car, with a small map in the corner.
   It leaves out skid marks, night, the ghost and the leader board. It only changes the picture on that phone.
 - This is an experiment. Depending on his verdict: remove it, or finish it properly (leader board, night, ghost).
+- Owner's first verdict (2026-11-20 07:11): "I think this is helping me." Two requests, built the same morning:
+  his own car should be seen turning (the camera now swings round behind the car over about a third of a second,
+  at most 35 degrees behind, so the car turns first and the view follows), and the front wheels should turn with
+  the steering (all cars, both views: yours from your steering, the others from how fast they are turning).
 
 ## Tested / not tested
 - Tested (2026-11-16): `npm test` (rooms, 8-player limit, colour rules, track and laps, a whole race, computer cars, cup, record, horn);
